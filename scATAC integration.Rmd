@@ -354,10 +354,36 @@ saveRDS(
 )
 ```
 
+# Quality check
+
 ```{r}
-# Summarise label transfer confidence
+# Load the saved integrated scATAC object before running quality checks.
+# This avoids re-running the upstream integration and label transfer steps.
+integrated_atac_rds <- "C:/Bioinfo data/RDS to skip calc/HM_DM_scATAC_integrated_with_scRNA_labels.rds"
+
+integrated_atac <- readRDS(integrated_atac_rds)
+
+# Restore the objects saved from the label transfer step.
+atac <- integrated_atac$atac
+atac_filtered <- integrated_atac$atac_filtered
+predictions <- integrated_atac$predictions
+
+# Use gene activity as the default assay for downstream marker checks.
+DefaultAssay(atac) <- "ACTIVITY"
+DefaultAssay(atac_filtered) <- "ACTIVITY"
+
+# Quick check that the expected objects and dimensions were loaded.
+names(integrated_atac)
+dim(atac)
+dim(atac_filtered)
+```
+
+```{r}
+# Check 1: summarise label transfer confidence.
+# Low or moderate prediction scores suggest weak scRNA-to-scATAC label transfer.
 meta_atac <- atac@meta.data
 
+# Overall confidence across all ATAC cells.
 overall_confidence <- data.frame(
   total_cells = nrow(meta_atac),
   median_prediction_score = median(meta_atac$prediction.score.max, na.rm = TRUE),
@@ -368,6 +394,7 @@ overall_confidence <- data.frame(
 
 overall_confidence
 
+# Confidence summary for each transferred cell type.
 confidence_by_label <- meta_atac %>%
   group_by(predicted.id) %>%
   summarise(
@@ -381,6 +408,7 @@ confidence_by_label <- meta_atac %>%
 
 confidence_by_label
 
+# Distribution of prediction scores across all cells.
 ggplot(meta_atac, aes(x = prediction.score.max)) +
   geom_histogram(bins = 50) +
   theme_classic() +
@@ -390,6 +418,7 @@ ggplot(meta_atac, aes(x = prediction.score.max)) +
     y = "Number of ATAC cells"
   )
 
+# Prediction score spread for each transferred label.
 ggplot(meta_atac, aes(x = predicted.id, y = prediction.score.max)) +
   geom_boxplot(outlier.size = 0.2) +
   coord_flip() +
@@ -402,7 +431,8 @@ ggplot(meta_atac, aes(x = predicted.id, y = prediction.score.max)) +
 ```
 
 ```{r}
-# Check consistency between unsupervised ATAC clusters and transferred scRNA labels
+# Check 2: compare unsupervised ATAC clusters with transferred scRNA labels.
+# Good label transfer should give one dominant label within most ATAC clusters.
 cluster_label_counts <- as.data.frame(
   table(atac$seurat_clusters, atac$predicted.id)
 )
@@ -413,6 +443,7 @@ colnames(cluster_label_counts) <- c(
   "n_cells"
 )
 
+# Convert counts to within-cluster fractions.
 cluster_label_props <- cluster_label_counts %>%
   group_by(atac_cluster) %>%
   mutate(
@@ -421,6 +452,7 @@ cluster_label_props <- cluster_label_counts %>%
   ) %>%
   ungroup()
 
+# For each ATAC cluster, identify the most common transferred label.
 cluster_purity <- cluster_label_props %>%
   group_by(atac_cluster) %>%
   slice_max(fraction, n = 1, with_ties = FALSE) %>%
@@ -429,6 +461,7 @@ cluster_purity <- cluster_label_props %>%
 
 cluster_purity
 
+# Heatmap of label composition within each ATAC cluster.
 ggplot(
   cluster_label_props,
   aes(x = atac_cluster, y = predicted_label, fill = fraction)
@@ -445,9 +478,11 @@ ggplot(
 ```
 
 ```{r}
-# Check marker gene activity in transferred cell types
+# Check 3: inspect marker gene activity in transferred cell types.
+# Reliable transferred labels should show expected marker activity patterns.
 DefaultAssay(atac_filtered) <- "ACTIVITY"
 
+# Markers selected to test hepatocyte, cholangiocyte, progenitor, and stromal identities.
 lineage_markers <- c(
   "FGG",
   "ACSM3",
@@ -458,15 +493,18 @@ lineage_markers <- c(
   "EPCAM"
 )
 
-gene_map <- as.data.frame(Annotation(atac)) %>%
+# Convert gene annotation from the peaks assay into a gene ID to gene symbol map.
+gene_map <- as.data.frame(Annotation(atac[["peaks"]])) %>%
   dplyr::select(gene_id, gene_name) %>%
   mutate(gene_id = sub("\\.\\d+$", "", gene_id)) %>%
   distinct(gene_name, .keep_all = TRUE)
 
+# Keep only markers that are present in the ACTIVITY assay.
 marker_features <- gene_map %>%
   filter(gene_name %in% lineage_markers) %>%
   filter(gene_id %in% rownames(atac_filtered[["ACTIVITY"]]))
 
+# DotPlot needs Ensembl gene IDs, while plot labels are shown as gene symbols.
 features_use <- marker_features$gene_id
 names(features_use) <- marker_features$gene_name
 
@@ -475,6 +513,7 @@ feature_labels <- setNames(
   unname(features_use)
 )
 
+# Visualise whether transferred labels are supported by expected marker activity.
 DotPlot(
   atac_filtered,
   features = unname(features_use),
