@@ -1,0 +1,490 @@
+---
+title: "scATAC integration"
+author:
+- name: Zack Guo
+  affiliation: UCL
+  email: wegmzgu@ucl.ac.uk
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float: yes
+    toc_depth: '5'
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Library packages
+```{r}
+library(Matrix)
+library(Seurat)
+library(Signac)
+library(dplyr)
+library(ggplot2)
+library(GenomicRanges)
+library(GenomeInfoDb)
+library(harmony)
+library(rtracklayer)
+```
+
+# scATAC integration. Parameter and filtering follows the paper where possible with local peak matrix files.
+```{r}
+setwd("C:/Bioinfo data")
+
+# Define function to read Cell Ranger ATAC peak matrix
+load_atac_sample <- function(base_dir, sample_name, sample_label, condition_label) {
+  base_dir <- gsub("\\\\", "/", base_dir)
+  
+  peak_path <- file.path(base_dir, paste0(sample_name, "_peaks.bed.gz"))
+  matrix_path <- file.path(base_dir, paste0(sample_name, "_matrix.mtx.gz"))
+  barcode_path <- file.path(base_dir, paste0(sample_name, "_barcodes.tsv.gz"))
+  
+  peaks <- read.table(
+    gzfile(peak_path),
+    sep = "\t",
+    header = FALSE,
+    stringsAsFactors = FALSE
+  )
+  colnames(peaks) <- c("chr", "start", "end")
+  
+  peak_names <- paste(peaks$chr, peaks$start, peaks$end, sep = "-")
+  
+  counts <- readMM(gzfile(matrix_path))
+  barcodes <- readLines(gzfile(barcode_path))
+  
+  rownames(counts) <- peak_names
+  colnames(counts) <- paste(sample_label, barcodes, sep = "_")
+  
+  peak_ranges <- makeGRangesFromDataFrame(
+    peaks,
+    seqnames.field = "chr",
+    start.field = "start",
+    end.field = "end"
+  )
+  names(peak_ranges) <- peak_names
+  
+  chrom_assay <- CreateChromatinAssay(
+    counts = counts,
+    ranges = peak_ranges,
+    genome = "hg19"
+  )
+  
+  seu <- CreateSeuratObject(
+    counts = chrom_assay,
+    assay = "peaks",
+    project = sample_label
+  )
+  
+  seu$sample <- sample_label
+  seu$condition <- condition_label
+  
+  return(seu)
+}
+
+# Load four ATAC samples
+base_dir <- "C:/Bioinfo data/Used before/ATAC"
+
+dm1 <- load_atac_sample(base_dir, "GSM4832485_DM-1_hg19", "DM_1", "DM")
+dm2 <- load_atac_sample(base_dir, "GSM4832486_DM-2_hg19", "DM_2", "DM")
+hm1 <- load_atac_sample(base_dir, "GSM4832487_HM-1_hg19", "HM_1", "HM")
+hm2 <- load_atac_sample(base_dir, "GSM4832488_HM-2_hg19", "HM_2", "HM")
+
+# Merge four ATAC samples
+atac <- merge(
+  dm1,
+  y = list(dm2, hm1, hm2)
+)
+
+# Load hg19 gene annotation from GRCh37 GTF
+gtf_path <- "C:/Bioinfo data/Used before/ATAC/annotation/Homo_sapiens.GRCh37.87.gtf.gz"
+
+file.exists(gtf_path)
+
+gene_annot <- rtracklayer::import(gtf_path)
+
+# Keep gene-level annotation only
+gene_annot <- gene_annot[gene_annot$type == "gene"]
+
+# Match chromosome naming style to hg19 peaks
+seqlevelsStyle(gene_annot) <- "UCSC"
+
+# Keep standard chromosomes only
+gene_annot <- keepStandardChromosomes(
+  gene_annot,
+  pruning.mode = "coarse"
+)
+
+# Set genome information
+genome(gene_annot) <- "hg19"
+
+# Add gene annotation to ATAC object
+Annotation(atac) <- gene_annot
+```
+
+# ATAC dimension reduction and batch correction
+```{r}
+DefaultAssay(atac) <- "peaks"
+
+# TF-IDF and LSI follow the standard scATAC workflow. Dimension 1 is usually sequencing depth.
+atac <- FindTopFeatures(atac, min.cutoff = 10)
+atac <- RunTFIDF(atac)
+atac <- RunSVD(atac, n = 30)
+
+# Harmony batch correction using sample as batch variable
+atac <- RunHarmony(
+  object = atac,
+  group.by.vars = "sample",
+  reduction = "lsi",
+  dims.use = 1:30,
+  reduction.save = "harmony",
+  project.dim = FALSE
+)
+
+# Use dimensions 2 to 30 for downstream analysis because LSI dimension 1 often captures sequencing depth
+atac <- RunUMAP(atac, reduction = "harmony", dims = 2:30)
+atac <- FindNeighbors(atac, reduction = "harmony", dims = 2:30)
+atac <- FindClusters(atac, resolution = 0.6)
+
+DimPlot(atac, reduction = "umap", group.by = "seurat_clusters", label = TRUE)
+```
+
+# Gene activity matrix for scRNA-scATAC integration
+```{r}
+# Gene activity score is approximated from the peak count matrix because fragment files are not available
+DefaultAssay(atac) <- "peaks"
+
+# Get peak count matrix
+peak_counts <- GetAssayData(
+  atac,
+  assay = "peaks",
+  layer = "counts"
+)
+
+# Get peak genomic ranges
+peak_ranges <- granges(atac[["peaks"]])
+
+# Check that peak ranges and peak count matrix are in the same order
+stopifnot(length(peak_ranges) == nrow(peak_counts))
+
+# Manually add peak names because granges() may return unnamed GRanges
+names(peak_ranges) <- rownames(peak_counts)
+
+# Get gene annotation
+gene_ranges <- Annotation(atac)
+
+# Keep gene-level annotation only
+gene_ranges <- gene_ranges[gene_ranges$type == "gene"]
+
+# Get Ensembl gene IDs and remove version suffix if present
+gene_ids <- as.character(mcols(gene_ranges)$gene_id)
+gene_ids <- sub("\\.\\d+$", "", gene_ids)
+
+# Keep genes with valid Ensembl IDs
+keep_genes <- !is.na(gene_ids) & gene_ids != ""
+gene_ranges <- gene_ranges[keep_genes]
+gene_ids <- gene_ids[keep_genes]
+
+# Extend gene body by 2 kb upstream of TSS
+gene_windows <- gene_ranges
+
+plus_strand <- as.character(strand(gene_windows)) == "+"
+minus_strand <- as.character(strand(gene_windows)) == "-"
+unknown_strand <- as.character(strand(gene_windows)) == "*"
+
+start(gene_windows)[plus_strand] <- pmax(
+  1,
+  start(gene_windows)[plus_strand] - 2000
+)
+
+end(gene_windows)[minus_strand] <- end(gene_windows)[minus_strand] + 2000
+
+start(gene_windows)[unknown_strand] <- pmax(
+  1,
+  start(gene_windows)[unknown_strand] - 2000
+)
+
+# Find peak-gene overlaps
+overlaps <- findOverlaps(
+  query = gene_windows,
+  subject = peak_ranges,
+  ignore.strand = TRUE
+)
+
+# Build gene-by-peak mapping matrix
+unique_gene_ids <- unique(gene_ids)
+
+gene_peak_matrix <- sparseMatrix(
+  i = match(gene_ids[queryHits(overlaps)], unique_gene_ids),
+  j = subjectHits(overlaps),
+  x = 1,
+  dims = c(length(unique_gene_ids), length(peak_ranges)),
+  dimnames = list(unique_gene_ids, rownames(peak_counts))
+)
+
+# Make overlap matrix binary
+gene_peak_matrix@x <- rep(1, length(gene_peak_matrix@x))
+
+# Sum peak counts for each gene
+gene.activities <- gene_peak_matrix %*% peak_counts
+
+# Keep genes with non-zero activity
+gene.activities <- gene.activities[
+  Matrix::rowSums(gene.activities) > 0,
+]
+
+# Add gene activity matrix as a new assay
+atac[["ACTIVITY"]] <- CreateAssayObject(
+  counts = gene.activities
+)
+
+DefaultAssay(atac) <- "ACTIVITY"
+
+atac <- NormalizeData(atac)
+
+atac <- ScaleData(
+  atac,
+  features = rownames(atac)
+)
+
+# Check result
+dim(gene.activities)
+head(rownames(gene.activities))
+```
+
+# Load annotated scRNA reference saved from the clustering Rmd
+```{r}
+rna_reference <- readRDS("C:/Bioinfo data/RDS to skip calc/HM_DM_scRNA_reference_for_ATAC.rds")
+
+DefaultAssay(rna_reference) <- "RNA"
+Idents(rna_reference) <- "cell_type"
+
+table(rna_reference$seurat_clusters)
+table(rna_reference$cell_type)
+```
+
+# Transfer scRNA cell type labels to scATAC cells
+```{r}
+DefaultAssay(rna_reference) <- "RNA"
+DefaultAssay(atac) <- "ACTIVITY"
+
+# Select variable genes from scRNA reference
+rna_reference <- FindVariableFeatures(
+  rna_reference,
+  selection.method = "vst",
+  nfeatures = 1500
+)
+
+# Use shared variable genes for label transfer
+transfer_features <- intersect(
+  VariableFeatures(rna_reference),
+  rownames(atac[["ACTIVITY"]])
+)
+
+length(transfer_features)
+
+# Scale selected transfer genes
+rna_reference <- ScaleData(
+  rna_reference,
+  assay = "RNA",
+  features = transfer_features
+)
+
+atac <- ScaleData(
+  atac,
+  assay = "ACTIVITY",
+  features = transfer_features
+)
+
+# Find transfer anchors
+transfer_anchors <- FindTransferAnchors(
+  reference = rna_reference,
+  query = atac,
+  reference.assay = "RNA",
+  query.assay = "ACTIVITY",
+  reduction = "cca",
+  features = transfer_features,
+  dims = 1:15
+)
+
+# Transfer scRNA cell type labels to scATAC cells
+predictions <- TransferData(
+  anchorset = transfer_anchors,
+  refdata = rna_reference$cell_type,
+  weight.reduction = atac[["harmony"]],
+  dims = 2:15
+)
+
+atac <- AddMetaData(
+  atac,
+  metadata = predictions
+)
+
+# Remove low-confidence predicted cells
+atac_filtered <- subset(
+  atac,
+  subset = prediction.score.max >= 0.3
+)
+
+table(atac$predicted.id)
+table(atac_filtered$predicted.id)
+table(atac_filtered$condition, atac_filtered$predicted.id)
+
+DimPlot(
+  atac_filtered,
+  reduction = "umap",
+  group.by = "predicted.id",
+  label = TRUE,
+  repel = TRUE
+) + NoLegend()
+```
+
+# Save integrated scATAC object for downstream analysis
+```{r}
+saveRDS(
+  list(
+    atac = atac,
+    atac_filtered = atac_filtered,
+    predictions = predictions
+  ),
+  "C:/Bioinfo data/RDS to skip calc/HM_DM_scATAC_integrated_with_scRNA_labels.rds"
+)
+```
+
+```{r}
+# Summarise label transfer confidence
+meta_atac <- atac@meta.data
+
+overall_confidence <- data.frame(
+  total_cells = nrow(meta_atac),
+  median_prediction_score = median(meta_atac$prediction.score.max, na.rm = TRUE),
+  mean_prediction_score = mean(meta_atac$prediction.score.max, na.rm = TRUE),
+  cells_above_0.3 = sum(meta_atac$prediction.score.max >= 0.3, na.rm = TRUE),
+  pass_rate_above_0.3 = mean(meta_atac$prediction.score.max >= 0.3, na.rm = TRUE)
+)
+
+overall_confidence
+
+confidence_by_label <- meta_atac %>%
+  group_by(predicted.id) %>%
+  summarise(
+    n_cells = n(),
+    median_prediction_score = median(prediction.score.max, na.rm = TRUE),
+    mean_prediction_score = mean(prediction.score.max, na.rm = TRUE),
+    pass_rate_above_0.3 = mean(prediction.score.max >= 0.3, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(n_cells))
+
+confidence_by_label
+
+ggplot(meta_atac, aes(x = prediction.score.max)) +
+  geom_histogram(bins = 50) +
+  theme_classic() +
+  labs(
+    title = "Distribution of label transfer prediction scores",
+    x = "Prediction score",
+    y = "Number of ATAC cells"
+  )
+
+ggplot(meta_atac, aes(x = predicted.id, y = prediction.score.max)) +
+  geom_boxplot(outlier.size = 0.2) +
+  coord_flip() +
+  theme_classic() +
+  labs(
+    title = "Prediction score by transferred cell type",
+    x = "Predicted cell type",
+    y = "Prediction score"
+  )
+```
+
+```{r}
+# Check consistency between unsupervised ATAC clusters and transferred scRNA labels
+cluster_label_counts <- as.data.frame(
+  table(atac$seurat_clusters, atac$predicted.id)
+)
+
+colnames(cluster_label_counts) <- c(
+  "atac_cluster",
+  "predicted_label",
+  "n_cells"
+)
+
+cluster_label_props <- cluster_label_counts %>%
+  group_by(atac_cluster) %>%
+  mutate(
+    cluster_total = sum(n_cells),
+    fraction = n_cells / cluster_total
+  ) %>%
+  ungroup()
+
+cluster_purity <- cluster_label_props %>%
+  group_by(atac_cluster) %>%
+  slice_max(fraction, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  arrange(as.numeric(as.character(atac_cluster)))
+
+cluster_purity
+
+ggplot(
+  cluster_label_props,
+  aes(x = atac_cluster, y = predicted_label, fill = fraction)
+) +
+  geom_tile() +
+  geom_text(aes(label = round(fraction, 2)), size = 3) +
+  theme_classic() +
+  labs(
+    title = "Consistency between ATAC clusters and transferred labels",
+    x = "Unsupervised ATAC cluster",
+    y = "Transferred scRNA label",
+    fill = "Fraction"
+  )
+```
+
+```{r}
+# Check marker gene activity in transferred cell types
+DefaultAssay(atac_filtered) <- "ACTIVITY"
+
+lineage_markers <- c(
+  "FGG",
+  "ACSM3",
+  "APOC1",
+  "CYP3A5",
+  "TFF1",
+  "KRT7",
+  "EPCAM"
+)
+
+gene_map <- as.data.frame(Annotation(atac)) %>%
+  dplyr::select(gene_id, gene_name) %>%
+  mutate(gene_id = sub("\\.\\d+$", "", gene_id)) %>%
+  distinct(gene_name, .keep_all = TRUE)
+
+marker_features <- gene_map %>%
+  filter(gene_name %in% lineage_markers) %>%
+  filter(gene_id %in% rownames(atac_filtered[["ACTIVITY"]]))
+
+features_use <- marker_features$gene_id
+names(features_use) <- marker_features$gene_name
+
+feature_labels <- setNames(
+  names(features_use),
+  unname(features_use)
+)
+
+DotPlot(
+  atac_filtered,
+  features = unname(features_use),
+  group.by = "predicted.id"
+) +
+  scale_x_discrete(labels = feature_labels) +
+  RotatedAxis() +
+  labs(
+    title = "Marker gene activity in transferred ATAC labels",
+    x = "Marker gene",
+    y = "Transferred cell type"
+  )
+```
