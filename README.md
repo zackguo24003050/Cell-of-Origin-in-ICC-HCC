@@ -2,6 +2,8 @@
 
 This repository contains analysis scripts for a summer research project on cell-of-origin inference in combined hepatocellular carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
 
+The HTML reports should be downloaded and opened locally to view the full source document; they contain both the analysis code and the knitted results.
+
 **Project period:** June 2025 - September 2025  
 **Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed  
 **Current stage:** single-cell RNA/ATAC integration and quality assessment  
