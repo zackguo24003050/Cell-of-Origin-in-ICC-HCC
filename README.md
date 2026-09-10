@@ -42,7 +42,6 @@ The analysis uses or references:
 
 - cHCC-ICC genomic data from the Cancer Cell study of combined hepatocellular and intrahepatic cholangiocarcinoma.
 - Tumor VCF files for mutation-density profiling.
-- Normal liver or hepatocyte epigenomic references, including histone modification and methylome tracks.
 - Bulk ATAC-seq data comparing hepatocyte and biliary-accessible regions.
 - Liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions.
 
