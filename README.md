@@ -11,7 +11,7 @@ The HTML reports should be downloaded and opened locally to view the full source
 
 ## Project Overview
 
-Cancer mutations are not uniformly distributed across the genome. Regional mutation density is influenced by chromatin organization, replication timing, and other cell-type-specific genomic features. This project applies that concept to cHCC-ICC, asking whether tumor mutation-density profiles are more consistent with hepatocyte-like, cholangiocyte-like, progenitor-like, or other liver-lineage chromatin states.
+Cancer mutations are not uniformly distributed across the genome. Regional mutation density is influenced by chromatin organization, replication timing, and other cell-type-specific genomic features. This project applies that concept to cHCC-ICC, asking whether tumor mutation-density profiles are more consistent with hepatocyte-like or cholangiocyte-like chromatin states.
 
 The long-term goal is to compare cHCC-ICC mutation-density landscapes with normal liver and liver-lineage chromatin references, then use those comparisons to support cell-of-origin interpretation.
 
