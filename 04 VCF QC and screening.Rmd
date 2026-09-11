@@ -1,8 +1,33 @@
 ---
-title: "01. VCF QC and screening"
-output: html_document
+title: "VCF QC and Screening"
+author:
+- name: Zack Guo
+  affiliation: UCL
+  email: wegmzgu@ucl.ac.uk
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_float: yes
+    toc_depth: '5'
+    df_print: paged
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Library packages
+```{r}
+# Load Bioconductor and plotting packages used for VCF parsing and QC.
+library(VariantAnnotation)
+library(GenomicRanges)
+library(dplyr)
+library(ggplot2)
+```
+
+# Aim
 This notebook turns the raw Mutect2 VCFs into one reproducible SNV table. The
 VCFs contain `FILTER=.` candidates, so the thresholds below are an exploratory
 screen rather than a substitute for `FilterMutectCalls`.
@@ -13,19 +38,13 @@ The eight `Com01-04` H/I files are tumour VCFs with a matched normal column in
 each file. The thresholds are written to disk so the filtering policy is
 recorded alongside the output tables.
 
-```{r setup, message=FALSE, warning=FALSE}
-# Load Bioconductor and plotting packages used for VCF parsing and QC.
-library(VariantAnnotation)
-library(GenomicRanges)
-library(dplyr)
-library(ggplot2)
-
+```{r}
 project_dir <- "C:/Bioinfo data/cell of origin"
 out_dir <- file.path(project_dir, "practice_results")
 # Keep the output directory stable so notebook 05 can consume these tables.
 dir.create(out_dir, showWarnings = FALSE)
 
-# Discover the eight labelled tumour VCFs; Mix02T is intentionally excluded.
+# Discover the eight labelled tumour VCFs.
 vcfs <- list.files(
   "C:/Bioinfo data/Mutation files",
   pattern = "^Com0[1-4][HI]\\.vcf$",
@@ -42,7 +61,7 @@ write.table(data.frame(parameter = names(rule), value = rule),
             row.names = FALSE, quote = FALSE)
 ```
 
-## Read and screen one tumour-normal VCF
+# Read and screen one tumour-normal VCF
 
 `screen_vcf()` keeps standard biallelic SNVs, extracts the tumour and matched-
 normal evidence, and applies all screening thresholds together. The function
@@ -131,7 +150,7 @@ write.table(snvs, file.path(out_dir, "screened_somatic_snvs.tsv"), sep = "\t",
 qc
 ```
 
-## Output and QC plot
+# Output and QC plot
 
 The main output, `screened_somatic_snvs.tsv`, is the input for notebook 05.
 `vcf_qc_summary.tsv` records how many records survive each broad stage. The
