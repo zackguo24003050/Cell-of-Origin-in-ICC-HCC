@@ -1,0 +1,189 @@
+---
+title: "02. DAR mutation depletion and H/I classification"
+output: html_document
+---
+
+If a tumour arose from a hepatocyte-like cell, mutations are expected to be
+relatively depleted in hepatocyte-open DARs; the converse applies to
+biliary-open DARs. This notebook tests that direction without selecting bins
+from the same eight labelled samples.
+
+# Inputs and DAR reference
+
+The screened SNV table comes from notebook 04. The two BED files are the
+human-coordinate DAR sets produced upstream; overlapping intervals are reduced
+before their total lengths are used as denominators.
+
+```{r setup, message=FALSE, warning=FALSE}
+# Load genomic-range, table, and plotting packages used in this comparison.
+library(GenomicRanges)
+library(rtracklayer)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+project_dir <- "C:/Bioinfo data/cell of origin"
+out_dir <- file.path(project_dir, "practice_results")
+# Read the screened tumour SNVs produced by notebook 04.
+snvs <- read.delim(file.path(out_dir, "screened_somatic_snvs.tsv"))
+
+# Restrict overlap calculations to standard human chromosomes.
+autosomes_x <- paste0("chr", c(1:22, "X"))
+read_dar <- function(path) {
+  # Import BED intervals, keep standard chromosomes, and merge overlaps.
+  x <- import(path, format = "BED")
+  keepSeqlevels(x, intersect(seqlevels(x), autosomes_x),
+                pruning.mode = "coarse") %>% reduce()
+}
+hep_dar <- read_dar("C:/Bioinfo data/hepatocytehuman.bed")
+bil_dar <- read_dar("C:/Bioinfo data/billiaryhuman.bed")
+hep_mb <- sum(width(hep_dar)) / 1e6
+bil_mb <- sum(width(bil_dar)) / 1e6
+
+write.table(
+  data.frame(dar_set = c("hepatocyte", "biliary"), Mb = c(hep_mb, bil_mb)),
+  file.path(out_dir, "dar_reference_sizes.tsv"), sep = "\t",
+  row.names = FALSE, quote = FALSE
+)
+```
+
+## TMB-scaled DAR counts
+
+The two `per_10000_mutations` columns are the old idea expressed directly:
+each sample's DAR count is scaled by that sample's total screened mutation
+burden. The lineage score additionally corrects for the different total sizes
+of the two DAR sets.
+
+The overlap flags are calculated per SNV, then collapsed to one row per tumour.
+The `0.5` pseudocount in `lineage_score` keeps the log-ratio finite when a DAR
+set contains no retained mutation.
+
+```{r dar-score}
+# Represent each SNV as a one-base genomic range for interval overlap testing.
+snv_gr <- makeGRangesFromDataFrame(
+  snvs, seqnames.field = "chr", start.field = "pos", end.field = "pos",
+  keep.extra.columns = TRUE
+)
+# Mark whether each SNV falls in a hepatocyte- or biliary-associated DAR.
+mcols(snv_gr)$in_hep <- countOverlaps(snv_gr, hep_dar) > 0
+mcols(snv_gr)$in_bil <- countOverlaps(snv_gr, bil_dar) > 0
+
+# Collapse the overlap flags to one row per tumour sample.
+dar_summary <- as.data.frame(snv_gr) %>%
+  group_by(sample) %>%
+  summarise(
+    total_screened_snvs = n(),
+    hepatocyte_dar_snvs = sum(in_hep),
+    biliary_dar_snvs = sum(in_bil),
+    hepatocyte_per_10000_mutations = 1e4 * hepatocyte_dar_snvs / total_screened_snvs,
+    biliary_per_10000_mutations = 1e4 * biliary_dar_snvs / total_screened_snvs,
+    hepatocyte_dar_rate_perMb = hepatocyte_dar_snvs / hep_mb,
+    biliary_dar_rate_perMb = biliary_dar_snvs / bil_mb,
+    # Lower scores are expected for hepatocyte-like samples under the
+    # open-chromatin mutation-depletion hypothesis.
+    lineage_score = log2(((hepatocyte_dar_snvs + 0.5) / hep_mb) /
+                         ((biliary_dar_snvs + 0.5) / bil_mb)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    patient = substr(sample, 1, 5),
+    known_label = case_when(
+      grepl("^Com0[1-4]H$", sample) ~ "H",
+      grepl("^Com0[1-4]I$", sample) ~ "I",
+      TRUE ~ NA_character_
+    )
+  ) %>% arrange(sample)
+
+write.table(dar_summary, file.path(out_dir, "dar_enrichment_summary.tsv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+dar_summary
+```
+
+## Paired test and leave-one-patient-out validation
+
+Lower score predicts H; higher score predicts I. Each held-out patient's cutoff
+is estimated only from the other three patients.
+
+The paired sign test asks only whether the direction is consistent across
+patients; it does not assume normally distributed scores. LOPO then checks
+whether the same rule generalises to a patient excluded from cutoff estimation.
+
+```{r validation}
+# Keep the eight labelled H/I samples for paired testing and validation.
+known <- filter(dar_summary, !is.na(known_label))
+# Use one classifier rule for both LOPO folds and any future unlabelled sample.
+classify_score <- function(score, cutoff, direction_consistent) {
+  if (direction_consistent) if_else(score < cutoff, "H", "I")
+  else rep("Indeterminate", length(score))
+}
+
+# Compare H and I scores within each patient rather than across patients.
+paired <- known %>%
+  select(patient, known_label, lineage_score) %>%
+  pivot_wider(names_from = known_label, values_from = lineage_score) %>%
+  mutate(I_minus_H = I - H,
+         direction = if_else(I_minus_H > 0, "expected", "opposite"))
+
+# Test whether the expected I-minus-H direction is consistent across patients.
+sign_test <- binom.test(sum(paired$I_minus_H > 0), nrow(paired), p = 0.5)
+
+lopo <- lapply(unique(known$patient), function(held_out) {
+  # Estimate the midpoint using the other patients only.
+  train <- filter(known, patient != held_out)
+  test <- filter(known, patient == held_out)
+  mean_h <- mean(train$lineage_score[train$known_label == "H"])
+  mean_i <- mean(train$lineage_score[train$known_label == "I"])
+  cutoff <- (mean_h + mean_i) / 2
+  # Do not classify a fold whose training data reverse the prespecified direction.
+  direction_consistent <- mean_h < mean_i
+  mutate(test, held_patient = held_out, fold_cutoff = cutoff,
+         predicted = classify_score(lineage_score, cutoff, direction_consistent),
+         evaluated = predicted != "Indeterminate",
+         correct = evaluated & predicted == known_label,
+         training_direction_consistent = direction_consistent)
+}) %>% bind_rows()
+
+n_evaluated <- sum(lopo$evaluated)
+lopo_accuracy <- if (n_evaluated) mean(lopo$correct[lopo$evaluated]) else NA_real_
+
+write.table(paired, file.path(out_dir, "paired_dar_score_differences.tsv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(lopo, file.path(out_dir, "leave_one_patient_out_predictions.tsv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+paired
+sign_test
+mean(lopo$correct)
+```
+
+## Score plot
+
+Each line connects the H and I samples from one patient. A consistent expected
+pattern would show most lines rising from H to I.
+
+```{r plot, fig.width=6, fig.height=4}
+# Connect each patient's H and I scores to show the paired direction.
+ggplot(known, aes(known_label, lineage_score, group = patient, colour = patient)) +
+  geom_line() + geom_point(size = 3) +
+  labs(x = NULL, y = "log2(H-DAR / I-DAR mutation density)") +
+  theme_classic()
+```
+
+## Final summary
+
+```{r mix02-and-result}
+# Summarise the paired test and held-out predictions for the final report.
+result <- c(
+  sprintf("Expected paired direction: %d/%d", sum(paired$I_minus_H > 0), nrow(paired)),
+  sprintf("Paired sign-test p = %.3g", sign_test$p.value),
+  sprintf("LOPO accuracy: %d/%d evaluated (%.1f%%); %d indeterminate",
+          sum(lopo$correct), n_evaluated, 100 * lopo_accuracy,
+          sum(!lopo$evaluated)),
+  "Conclusion: no reliable H/I classifier is supported by these data."
+)
+writeLines(result, file.path(out_dir, "final_result.txt"))
+cat(paste(result, collapse = "\n"))
+```
+
+Main limitations: only four paired patients, candidate-like Mutect2 WES calls,
+no capture/callable BED, and mouse-to-human lifted DARs.
