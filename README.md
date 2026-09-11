@@ -59,7 +59,7 @@ practical foundation for designing later publishable work.
 
 This project is motivated by three related ideas:
 
-- Accessible regulatory regions tend to undergo more effective DNA repair and
+- Accessible DNA regions tend to undergo more effective DNA repair and
   therefore accumulate fewer somatic mutations [1].
 - Because chromatin accessibility is cell-type-specific, regional mutation
   density can retain information about a tumour's cell type of origin [2].
@@ -112,9 +112,7 @@ cell-type-specific chromatin reference, and the project moved to bulk ATAC-seq.
 The bulk ATAC workflow prepares the featureCounts peak matrix and compares
 three hepatocyte samples with three biliary/BEC samples using DESeq2. Peaks are
 classified using `padj < 0.05` and `|log2FoldChange| > 1`, joined back to their
-genomic coordinates, and exported as lineage-associated BED files. The BED
-start positions are converted from 1-based SAF coordinates to 0-based BED
-coordinates before the external mouse-to-human liftOver step.
+genomic coordinates, and exported as lineage-associated BED files. 
 
 **Result:** the comparison identified 1,217 biliary-associated and 2,951
 hepatocyte-associated peaks. The lifted human-coordinate files contained 1,020
