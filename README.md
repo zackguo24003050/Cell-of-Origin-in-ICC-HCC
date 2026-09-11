@@ -1,145 +1,201 @@
 # Cell-of-Origin in ICC-HCC
 
-This repository contains analysis scripts for a summer research project on cell-of-origin inference in combined hepatocellular carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
+This repository contains the complete analysis workflow for a first-year
+summer research project on cell-of-origin inference in combined hepatocellular
+carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
 
-The HTML reports should be downloaded and opened locally to view the full source document; they contain both the analysis code and the knitted results.
+The HTML reports should be downloaded and opened locally to view their code and
+knitted results. The later stages are provided as R Markdown source files.
 
-**Project period:** June 2025 - September 2025  
-**Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed  
-**Current stage:** exploratory integration of single-cell, bulk ATAC, and tumour mutation data  
-**Main question:** can genome-wide mutation-density patterns help infer the likely cell-of-origin of different cHCC-ICC components or subtypes?
+**Project period:** June 2025 - September 2025<br>
+**Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed<br>
+**Analysis status:** workflow completed<br>
+**Main question:** can the distribution of somatic mutations relative to
+hepatocyte- and biliary-associated chromatin regions help identify the likely
+cell of origin of cHCC-ICC tumour components?
 
 ## Project Overview
 
-Cancer mutations are not uniformly distributed across the genome. Regional mutation density is influenced by chromatin organization, replication timing, and other cell-type-specific genomic features. This project applies that concept to cHCC-ICC, asking whether tumor mutation-density profiles are more consistent with hepatocyte-like or cholangiocyte-like chromatin states.
+Somatic mutations are not uniformly distributed across the genome. Chromatin
+accessibility and other cell-type-specific genomic features can influence where
+mutations accumulate. This project therefore asked whether the mutation
+profiles of hepatocellular-like (H) and intrahepatic cholangiocarcinoma-like
+(I) tumour components differ relative to hepatocyte and biliary chromatin.
 
-The long-term goal is to compare cHCC-ICC mutation-density landscapes with normal liver and liver-lineage chromatin references, then use those comparisons to support cell-of-origin interpretation.
+The project began by integrating liver organoid single-cell RNA-seq and
+single-cell ATAC-seq data. The scRNA data were clustered and annotated, then
+used as a reference for label transfer to the scATAC dataset. However, fragment
+files were unavailable, so gene activity had to be approximated from the peak
+count matrix. Together with moderate prediction confidence, weak agreement
+with unsupervised ATAC clusters, and limited marker support, this made the
+transferred labels unsuitable as a reliable cell-type-specific chromatin
+reference.
+
+The analysis therefore moved to bulk ATAC-seq, where hepatocyte and biliary
+samples could be compared directly to define differential-accessibility regions
+(DARs). These regions were converted to human coordinates and combined with
+screened tumour SNVs to test whether mutation distributions differed relative
+to hepatocyte- and biliary-associated chromatin. The final paired comparison
+did not show a consistent signal, but it completed the full path from reference
+construction and genomic data processing to statistical testing and biological
+interpretation.
+
+This was an introductory project rather than a definitive cell-of-origin
+study. It provided practical experience with scRNA-seq, scATAC-seq, bulk
+ATAC-seq, VCF processing, genomic intervals, statistical analysis, and
+reproducible reporting. Re-examining the workflow also revealed weaknesses in
+the original data and methods, which provided a much stronger foundation for
+designing later work toward a publishable result.
 
 ```text
-cHCC-ICC tumor mutations
-        |
-        v
-Genome-wide mutation-density profiles
-        |
-        v
-Comparison with liver-lineage chromatin references
-        |
-        v
-Candidate cell-of-origin interpretation
+01 scRNA clustering and annotation
+                 |
+                 v
+02 scATAC integration and label transfer
+                 |
+                 v
+     Label-transfer support was insufficient
+                 |
+                 v
+03 Bulk ATAC: hepatocyte vs biliary ----> lineage-associated DARs
+                                                   |
+04 Eight tumour VCFs ----> screened SNVs ----------+
+                                                   |
+                                                   v
+05 TMB-scaled DAR mutation comparison and paired direction test
 ```
 
 ## Scientific Context
 
 This project is motivated by three related ideas:
 
-- Cell-of-origin chromatin organization can shape regional somatic mutation density across cancer genomes.
-- cHCC-ICC contains hepatocellular and cholangiocytic differentiation, making its origin biologically ambiguous.
-- Liver organoid and liver-lineage epigenomic data may provide useful reference states, but their quality needs to be evaluated before downstream interpretation.
+- Cell-of-origin chromatin organization can shape regional somatic mutation
+  density across cancer genomes.
+- cHCC-ICC contains hepatocellular and cholangiocytic differentiation, making
+  its origin biologically ambiguous.
+- Hepatocyte and biliary chromatin references provide genomic regions in which
+  mutation depletion or enrichment can be compared between tumour components.
 
 ## Data Sources
 
 The analysis uses or references:
 
-- cHCC-ICC genomic data from the Cancer Cell study of combined hepatocellular and intrahepatic cholangiocarcinoma.
-- Tumor VCF files for mutation-density profiling.
-- Bulk ATAC-seq data comparing hepatocyte and biliary-accessible regions.
-- Liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions.
+- cHCC-ICC genomic data from the Cancer Cell study of combined hepatocellular
+  and intrahepatic cholangiocarcinoma;
+- eight tumour VCFs representing paired H and I components from four patients;
+- bulk ATAC-seq count data comparing hepatocyte and biliary samples;
+- liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions; and
+- mouse-derived DAR coordinates converted to the human genome by an external
+  liftOver step.
 
-Large raw files and intermediate analysis objects are not intended to be stored directly in this repository.
+Large raw files and intermediate analysis objects are not stored directly in
+this repository.
 
-## Current Analysis Stage
+## Analysis Workflow and Results
 
-### Single-Cell RNA Reference
+### 01. scRNA clustering and annotation
 
-The scRNA-seq workflow reprocesses HM and DM liver organoid samples, performs clustering, identifies marker genes, and assigns cell-type labels based on the reference paper.
+The scRNA-seq workflow reprocesses the HM and DM liver organoid samples,
+normalizes the data, performs dimensionality reduction and clustering,
+identifies marker genes, and assigns cell-type labels using the reference
+study.
 
-The annotated scRNA object is used as a reference for scATAC label transfer.
+**Result:** an annotated scRNA object was generated and used as the reference
+for scATAC label transfer.
 
-### Single-Cell ATAC Integration
+### 02. scATAC integration and label transfer
 
-The scATAC-seq workflow integrates four HM/DM ATAC samples, applies LSI and Harmony correction, computes a gene activity matrix, and transfers scRNA-derived labels onto ATAC cells.
+The scATAC-seq workflow integrates four HM/DM samples using LSI and Harmony.
+Because fragment files were not available, gene activity is approximated by
+summing counts from peaks overlapping each gene body and its upstream region.
+The scRNA-derived labels are then transferred to ATAC cells and assessed using
+prediction scores, agreement with unsupervised ATAC clusters, and marker-gene
+activity.
 
-The current analysis focuses on quality checking this transferred annotation.
+**Result:** the transfer produced labels, but prediction confidence was
+moderate, concordance with unsupervised clusters was weak, and marker support
+was limited. The scATAC annotation was therefore not used as the final
+cell-type-specific chromatin reference, and the project moved to bulk ATAC-seq.
 
-### Label Transfer Quality Assessment
+### 03. Bulk ATAC differential-accessibility analysis
 
-Three checks are used to evaluate whether transferred scATAC labels are reliable:
+The bulk ATAC workflow prepares the featureCounts peak matrix and compares
+three hepatocyte samples with three biliary/BEC samples using DESeq2. Peaks are
+classified using `padj < 0.05` and `|log2FoldChange| > 1`, joined back to their
+genomic coordinates, and exported as lineage-associated BED files. The BED
+start positions are converted from 1-based SAF coordinates to 0-based BED
+coordinates before the external mouse-to-human liftOver step.
 
-- prediction score distribution
-- agreement between unsupervised ATAC clusters and transferred scRNA labels
-- marker gene activity across transferred labels
+**Result:** the comparison identified 1,217 biliary-associated and 2,951
+hepatocyte-associated peaks. The lifted human-coordinate files contained 1,020
+biliary and 2,704 hepatocyte intervals and became the chromatin references for
+the mutation analysis.
 
-Current interpretation:
+### 04. Tumour VCF QC and screening
 
-```text
-The transferred scATAC labels show moderate prediction confidence, weak concordance with unsupervised ATAC clusters, and limited marker support. These labels should therefore be treated as exploratory rather than as high-confidence cell-type annotations.
-```
+The VCF workflow reads the eight `Com01-04H/I` tumour samples. All eight are
+tumour samples; within each VCF, the tumour genotype is compared with its
+matched-normal genotype. Because the supplied Mutect2 records have `FILTER=.`,
+the workflow applies a documented screening rule to standard biallelic SNVs
+using tumour and normal allele evidence, depth, mapping quality, base quality,
+strand-bias information, and population-frequency annotations.
 
-This supports the decision to be cautious about using this scATAC dataset as a cell-type-specific chromatin reference.
-
-## Downstream Analysis Workflow
-
-The downstream analysis now follows five documented steps. The final three
-notebooks are exploratory and are deliberately kept separate from the
-single-cell reference work.
-
-### 01. scRNA reference
-
-`scRNA clustering and annotating.html` reprocesses the HM/DM liver organoid
-scRNA-seq data, clusters cells, identifies marker genes, and assigns the
-reference cell-type labels used later for ATAC label transfer.
-
-**Result:** a labelled scRNA reference was produced for the scATAC analysis.
-
-### 02. scATAC integration and annotation
-
-`scATAC-integration.html` integrates four HM/DM scATAC samples using LSI and
-Harmony, constructs a peak-based gene-activity assay, and transfers the scRNA
-labels to ATAC cells.
-
-**Result:** label transfer was possible, but prediction scores, cluster
-agreement, and marker support were only moderate/limited. The labels are
-therefore exploratory rather than a high-confidence cell-type reference.
-
-### 03. Bulk ATAC differential analysis
-
-`03 bulk ATAC analysis.Rmd` prepares the bulk ATAC count matrix, models the
-Hepatocyte (H) versus biliary (I/BEC) contrast with DESeq2, annotates peaks,
-and exports significant differential-accessibility regions (DARs) as BED
-files for downstream overlap analysis.
-
-**Result:** hepatocyte-associated and biliary-associated DAR sets were defined
-for use as chromatin references. This step provides the regions, not a final
-cell-of-origin call.
-
-### 04. Tumour VCF screening
-
-`04 VCF QC and screening.Rmd` reads the eight tumour samples (`Com01-04H/I`).
-Each VCF contains tumour and matched-normal columns, but the records lack a
-reliable Mutect2 `FILTER` field, so the notebook applies an explicit
-exploratory screen for standard biallelic SNVs, tumour/normal allele evidence,
-mapping/base-quality support, and common/low-quality exclusions.
-
-**Result:** a screened SNV table and QC summary were generated for the eight
-labelled tumour samples. These are candidate-like WES calls; no capture or
-callable-region BED was supplied, so mutation densities should not be treated
-as calibrated absolute rates.
+**Result:** the workflow generated one screened somatic-SNV table and a QC
+summary for all eight samples. Depending on the sample, 1,419 to 44,394 SNVs
+passed the screening criteria. A 1 Mb binned mutation-count table was also
+generated for genome-wide distribution checks.
 
 ### 05. DAR mutation comparison
 
-`05 DAR enrichment and classification.Rmd` overlaps the screened SNVs with
-the human-coordinate hepatocyte and biliary DAR BED files. Counts are scaled
-to each sample's total screened mutation burden (`per_10000_mutations`) and
-also normalized by the total size of each DAR set. A paired H-versus-I
-direction test is then applied across the four matched patient pairs.
+The final workflow overlaps each screened SNV with the human-coordinate
+hepatocyte and biliary DARs. For each tumour, the two DAR mutation counts are
+scaled by the sample's total screened mutation burden and expressed per 10,000
+screened mutations. A second normalization accounts for the different total
+lengths of the two DAR sets, and the resulting log-ratio is used as the lineage
+score.
 
-Mix02T is not part of the current analysis, and no external validation or
-classifier is reported. The notebook is now a descriptive comparison only.
+Under the chromatin-associated mutation-depletion hypothesis, an H sample
+should have a lower score than its paired I sample. This direction is tested
+within each of the four patients. Mix02T is not included, and no prediction or
+validation model is fitted.
 
-**Result:** the expected direction was not consistent enough to support a
-reliable H/I separation. The result should be interpreted as exploratory,
-given the small number of pairs, candidate-like VCF calls, and missing
-callable-region normalization.
+**Result:** two of four patient pairs followed the expected direction and two
+showed the opposite direction. The paired sign-test result was `p = 1`, so the
+current data do not show a consistent H-versus-I separation based on DAR
+mutation density.
+
+## Overall Conclusion
+
+The project completed the full path from single-cell reference construction to
+bulk chromatin comparison and tumour mutation analysis. The single-cell ATAC
+labels were not sufficiently well supported to serve as the final reference,
+but bulk ATAC-seq provided hepatocyte- and biliary-associated DAR sets for a
+direct test of the hypothesis. After VCF screening and per-sample mutation
+burden scaling, the paired tumour comparison did not show a consistent lineage
+signal. The present analysis therefore does not support assigning H or I tumour
+components to a cell of origin from these DAR mutation counts alone.
+
+Although the biological result was inconclusive, the project was valuable as a
+first complete bioinformatics workflow. It showed how limitations in reference
+quality, variant calling, genomic coordinate handling, normalization, and
+sample size propagate into the final interpretation. Those lessons informed
+the design and quality standards of subsequent projects aimed at producing
+publishable results.
+
+## Limitations
+
+- Only four paired patients were available, giving very low power for the
+  paired direction test.
+- The VCFs contain candidate-like Mutect2 records with `FILTER=.`. The manual
+  screening rule cannot fully reproduce a standard Mutect2 filtering workflow.
+- The samples appear to be whole-exome data, but no capture or callable-region
+  BED was supplied. Scaling by total screened SNVs controls for overall sample
+  mutation burden but is not equivalent to mutation rate per callable base.
+- The bulk ATAC comparison contains three samples per group.
+- The DARs originated in mouse data and were converted to human coordinates by
+  an external liftOver step; genome-build and mapping provenance remain
+  important sources of uncertainty.
+- No independent sample is included for validation.
 
 ## Repository Structure
 
@@ -155,13 +211,13 @@ callable-region normalization.
 
 ## Main Analysis Files
 
-| File | Purpose |
-|---|---|
-| `scRNA clustering and annotating.Rmd` | Reprocesses HM/DM liver organoid scRNA-seq data, annotates clusters, and creates the scRNA reference for ATAC label transfer |
-| `scATAC integration.Rmd` | Integrates HM/DM scATAC-seq data, transfers scRNA labels, and evaluates label quality |
-| `03 bulk ATAC analysis.Rmd` | Differential bulk ATAC analysis and export of hepatocyte- and biliary-associated DAR BED files |
-| `04 VCF QC and screening.Rmd` | Exploratory screening and QC of the eight tumour VCFs |
-| `05 DAR enrichment and classification.Rmd` | TMB-scaled DAR overlap counts and paired H/I direction test; no validation classifier |
+| Step | File | Purpose | Outcome |
+|---:|---|---|---|
+| 01 | `scRNA-clustering-and-annotating.html` | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
+| 02 | `scATAC-integration.html` | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
+| 03 | `03 bulk ATAC analysis.Rmd` | Compare hepatocyte and biliary bulk ATAC-seq and export DARs | Human-coordinate hepatocyte and biliary DAR references |
+| 04 | `04 VCF QC and screening.Rmd` | Screen and summarize the eight paired-component tumour VCFs | Screened SNV and 1 Mb mutation-count tables |
+| 05 | `05 DAR enrichment and classification.Rmd` | Scale DAR mutation counts and test the paired H/I direction | Expected direction in 2/4 pairs; no consistent separation |
 
 ## Software
 
@@ -181,23 +237,27 @@ The analysis is mainly written in R. Packages used across the project include:
 - Signac
 - Harmony
 
-## Current Status
+## Analysis Status
 
-| Module | Status | Notes |
+| Module | Status | Main result |
 |---|---:|---|
-| scRNA reference annotation | Completed | Used to create the scRNA reference for ATAC label transfer |
-| scATAC integration | Current stage | Includes label transfer and quality assessment |
-| scATAC label quality check | Current stage | Results suggest caution in using transferred labels |
-| Bulk ATAC comparison | Completed, exploratory | DAR reference sets exported for hepatocyte versus biliary comparison |
-| Mutation-density comparison | Completed, exploratory | Eight tumour VCFs screened and overlapped with DAR sets after per-sample scaling |
-| Final cell-of-origin model | Not supported yet | Current paired result does not justify a reliable H/I classifier |
+| scRNA reference annotation | Completed | Annotated reference generated |
+| scATAC integration and label transfer | Completed | Transferred labels lacked strong independent support |
+| Bulk ATAC comparison | Completed | Hepatocyte- and biliary-associated DARs defined |
+| Tumour VCF screening | Completed | Screened SNV tables generated for eight tumour samples |
+| DAR mutation comparison | Completed | Expected paired direction in 2/4 patients; sign-test `p = 1` |
+| Cell-of-origin inference | Inconclusive | Current DAR mutation counts do not reliably separate H and I components |
 
 ## References
 
-- Polak et al. *Cell-of-origin chromatin organization shapes the mutational landscape of cancer.*
-- Xue et al. *Genomic and Transcriptomic Profiling of Combined Hepatocellular and Intrahepatic Cholangiocarcinoma Reveals Distinct Molecular Subtypes.*
-- Kim et al. *Integrative analysis of single-cell RNA-seq and ATAC-seq reveals heterogeneity of induced pluripotent stem cell-derived hepatic organoids.*
+- Polak et al. *Cell-of-origin chromatin organization shapes the mutational
+  landscape of cancer.*
+- Xue et al. *Genomic and Transcriptomic Profiling of Combined Hepatocellular
+  and Intrahepatic Cholangiocarcinoma Reveals Distinct Molecular Subtypes.*
+- Kim et al. *Integrative analysis of single-cell RNA-seq and ATAC-seq reveals
+  heterogeneity of induced pluripotent stem cell-derived hepatic organoids.*
 
 ## Notes
 
-This repository is an active research workspace. Some scripts still contain local file paths and may require path updates before running on another machine.
+Some scripts contain local Windows file paths and require path updates before
+running on another computer.
