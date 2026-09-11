@@ -4,8 +4,9 @@ This repository contains the complete analysis workflow for a first-year
 summer research project on cell-of-origin inference in combined hepatocellular
 carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
 
-The HTML reports should be downloaded and opened locally to view their code and
-knitted results. The later stages are provided as R Markdown source files.
+The five numbered HTML reports contain the complete code, output, figures, and
+interpretation for each analysis stage. Download and open them locally for the
+best viewing experience.
 
 **Project period:** June 2025 - September 2025<br>
 **Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed<br>
@@ -214,14 +215,11 @@ independently validated and publishable results.
 
 ```text
 .
-+-- scRNA-clustering-and-annotating.html
-+-- scATAC-integration.html
++-- 01-scRNA-clustering-and-annotating.html
++-- 02-scATAC-integration.html
 +-- 03-bulk-ATAC-analysis.html
 +-- 04-VCF-QC-and-screening.html
 +-- 05-DAR-enrichment-and-classification.html
-+-- 03 bulk ATAC analysis.Rmd
-+-- 04 VCF QC and screening.Rmd
-+-- 05 DAR enrichment and classification.Rmd
 +-- README.md
 ```
 
@@ -229,14 +227,11 @@ independently validated and publishable results.
 
 | Step | File | Purpose | Outcome |
 |---:|---|---|---|
-| 01 | [scRNA-clustering-and-annotating.html](scRNA-clustering-and-annotating.html) | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
-| 02 | [scATAC-integration.html](scATAC-integration.html) | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
+| 01 | [01-scRNA-clustering-and-annotating.html](01-scRNA-clustering-and-annotating.html) | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
+| 02 | [02-scATAC-integration.html](02-scATAC-integration.html) | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
 | 03 | [03-bulk-ATAC-analysis.html](03-bulk-ATAC-analysis.html) | Compare hepatocyte and biliary bulk ATAC-seq and export DARs | Human-coordinate hepatocyte and biliary DAR references |
 | 04 | [04-VCF-QC-and-screening.html](04-VCF-QC-and-screening.html) | Screen and summarize the eight paired-component tumour VCFs | Screened SNV table and per-sample QC summary |
 | 05 | [05-DAR-enrichment-and-classification.html](05-DAR-enrichment-and-classification.html) | Select the top 10% bins and compare paired DAR mutation-density scores | Expected direction in 4/4 pairs; sign-test `p = 0.125` |
-
-The R Markdown source files for steps 03-05 are included alongside the knitted
-HTML reports.
 
 ## Software
 
@@ -278,5 +273,5 @@ The analysis is mainly written in R. Packages used across the project include:
 
 ## Notes
 
-Some scripts contain local Windows file paths and require path updates before
-running on another computer.
+The reports preserve the local Windows file paths used in the original code;
+reproducing the workflow on another computer requires updating those paths.
