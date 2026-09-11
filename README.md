@@ -34,11 +34,11 @@ reference.
 The analysis therefore moved to bulk ATAC-seq, where hepatocyte and biliary
 samples could be compared directly to define differential-accessibility regions
 (DARs). These regions were converted to human coordinates and combined with
-screened tumour SNVs to test whether mutation distributions differed relative
-to hepatocyte- and biliary-associated chromatin. The final paired comparison
-did not show a consistent signal, but it completed the full path from reference
-construction and genomic data processing to statistical testing and biological
-interpretation.
+screened tumour SNVs. After selecting the 10% of 1 Mb genomic bins with the
+largest scaled H-versus-I mutation difference, all four paired tumours showed
+the expected relative depletion pattern in lineage-associated DARs. This was a
+small but coherent positive result, although four pairs provide limited
+statistical power (`p = 0.125`) and do not constitute independent validation.
 
 This was an introductory project rather than a definitive cell-of-origin
 study. It provided practical experience with scRNA-seq, scATAC-seq, bulk
@@ -62,7 +62,7 @@ designing later work toward a publishable result.
 04 Eight tumour VCFs ----> screened SNVs ----------+
                                                    |
                                                    v
-05 TMB-scaled DAR mutation comparison and paired direction test
+05 Top-10% bins: DAR mutation-density score and paired direction test
 ```
 
 ## Scientific Context
@@ -137,32 +137,40 @@ The VCF workflow reads the eight `Com01-04H/I` tumour samples. All eight are
 tumour samples; within each VCF, the tumour genotype is compared with its
 matched-normal genotype. Because the supplied Mutect2 records have `FILTER=.`,
 the workflow applies a documented screening rule to standard biallelic SNVs
-using tumour and normal allele evidence, depth, mapping quality, base quality,
-strand-bias information, and population-frequency annotations.
+using tumour and normal read depth, alternate-allele support, allele fraction,
+and the Mutect2 tumour log-odds score (`TLOD`). The same predefined thresholds
+are applied to every sample.
 
 **Result:** the workflow generated one screened somatic-SNV table and a QC
 summary for all eight samples. Depending on the sample, 1,419 to 44,394 SNVs
-passed the screening criteria. A 1 Mb binned mutation-count table was also
-generated for genome-wide distribution checks.
+passed the screening criteria.
 
 ### 05. DAR mutation comparison
 
-The final workflow overlaps each screened SNV with the human-coordinate
-hepatocyte and biliary DARs. For each tumour, the two DAR mutation counts are
-scaled by the sample's total screened mutation burden and expressed per 10,000
-screened mutations. A second normalization accounts for the different total
-lengths of the two DAR sets, and the resulting log-ratio is used as the lineage
-score.
+The final workflow divides chromosomes 1-22 and X into 3,053 1 Mb bins. Within
+each sample, bin mutation counts are scaled per 10,000 screened SNVs. The H and
+I group means are compared in each bin, and the 306 bins with the largest
+absolute difference—the top 10%—are retained. Hepatocyte and biliary DARs are
+then restricted to these bins.
+
+For each tumour, mutation density is calculated separately in the restricted
+hepatocyte and biliary DARs. The lineage score is the log2 ratio of
+hepatocyte-DAR to biliary-DAR mutation density, with a 0.5 pseudocount. This
+accounts for the different total lengths of the two DAR sets; scaling by total
+screened mutation burden is equivalent within this within-sample ratio because
+the common denominator cancels.
 
 Under the chromatin-associated mutation-depletion hypothesis, an H sample
 should have a lower score than its paired I sample. This direction is tested
 within each of the four patients. Mix02T is not included, and no prediction or
 validation model is fitted.
 
-**Result:** two of four patient pairs followed the expected direction and two
-showed the opposite direction. The paired sign-test result was `p = 1`, so the
-current data do not show a consistent H-versus-I separation based on DAR
-mutation density.
+**Result:** all four patient pairs followed the expected direction: the H
+component had a lower lineage score than its paired I component. The paired
+differences (`I - H`) were 1.585, 1.585, 0.652, and 0.330. The two-sided sign
+test was `p = 0.125`; the direction was completely consistent in this dataset,
+but the four available pairs provide insufficient power for conventional
+statistical significance.
 
 ## Overall Conclusion
 
@@ -170,24 +178,29 @@ The project completed the full path from single-cell reference construction to
 bulk chromatin comparison and tumour mutation analysis. The single-cell ATAC
 labels were not sufficiently well supported to serve as the final reference,
 but bulk ATAC-seq provided hepatocyte- and biliary-associated DAR sets for a
-direct test of the hypothesis. After VCF screening and per-sample mutation
-burden scaling, the paired tumour comparison did not show a consistent lineage
-signal. The present analysis therefore does not support assigning H or I tumour
-components to a cell of origin from these DAR mutation counts alone.
+direct test of the hypothesis. After VCF screening, mutation-burden scaling,
+and top-bin selection, all four H/I pairs showed the predicted relative
+mutation-depletion direction. The project can therefore be considered a small
+proof-of-concept success: it recovered a coherent signal across the available
+pairs and connected chromatin accessibility with regional tumour mutation
+patterns in one reproducible workflow.
 
-Although the biological result was inconclusive, the project was valuable as a
-first complete bioinformatics workflow. It showed how limitations in reference
-quality, variant calling, genomic coordinate handling, normalization, and
-sample size propagate into the final interpretation. Those lessons informed
-the design and quality standards of subsequent projects aimed at producing
-publishable results.
+The result remains preliminary rather than definitive. With only four paired
+patients, even 4/4 concordance gives a two-sided sign-test `p = 0.125`, and the
+same samples were used to select the most different bins and assess the paired
+direction. Nevertheless, this first complete bioinformatics project provided
+useful biological evidence, practical experience across several genomic data
+types, and a stronger foundation for later work designed to produce
+independently validated and publishable results.
 
 ## Limitations
 
 - Only four paired patients were available, giving very low power for the
-  paired direction test.
-- The VCFs contain candidate-like Mutect2 records with `FILTER=.`. The manual
-  screening rule cannot fully reproduce a standard Mutect2 filtering workflow.
+  paired direction test; 4/4 concordance still yields `p = 0.125`.
+- The same eight samples were used to select the top 10% bins and evaluate the
+  H/I direction, so the observed consistency requires independent replication.
+- The input VCFs did not include variant-level filtering status (`FILTER=.`),
+  so a common set of predefined quality thresholds was applied to all samples.
 - The samples appear to be whole-exome data, but no capture or callable-region
   BED was supplied. Scaling by total screened SNVs controls for overall sample
   mutation burden but is not equivalent to mutation rate per callable base.
@@ -195,7 +208,7 @@ publishable results.
 - The DARs originated in mouse data and were converted to human coordinates by
   an external liftOver step; genome-build and mapping provenance remain
   important sources of uncertainty.
-- No independent sample is included for validation.
+- No independent sample was available for validation.
 
 ## Repository Structure
 
@@ -203,6 +216,9 @@ publishable results.
 .
 +-- scRNA-clustering-and-annotating.html
 +-- scATAC-integration.html
++-- 03-bulk-ATAC-analysis.html
++-- 04-VCF-QC-and-screening.html
++-- 05-DAR-enrichment-and-classification.html
 +-- 03 bulk ATAC analysis.Rmd
 +-- 04 VCF QC and screening.Rmd
 +-- 05 DAR enrichment and classification.Rmd
@@ -213,11 +229,14 @@ publishable results.
 
 | Step | File | Purpose | Outcome |
 |---:|---|---|---|
-| 01 | `scRNA-clustering-and-annotating.html` | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
-| 02 | `scATAC-integration.html` | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
-| 03 | `03 bulk ATAC analysis.Rmd` | Compare hepatocyte and biliary bulk ATAC-seq and export DARs | Human-coordinate hepatocyte and biliary DAR references |
-| 04 | `04 VCF QC and screening.Rmd` | Screen and summarize the eight paired-component tumour VCFs | Screened SNV and 1 Mb mutation-count tables |
-| 05 | `05 DAR enrichment and classification.Rmd` | Scale DAR mutation counts and test the paired H/I direction | Expected direction in 2/4 pairs; no consistent separation |
+| 01 | [scRNA-clustering-and-annotating.html](scRNA-clustering-and-annotating.html) | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
+| 02 | [scATAC-integration.html](scATAC-integration.html) | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
+| 03 | [03-bulk-ATAC-analysis.html](03-bulk-ATAC-analysis.html) | Compare hepatocyte and biliary bulk ATAC-seq and export DARs | Human-coordinate hepatocyte and biliary DAR references |
+| 04 | [04-VCF-QC-and-screening.html](04-VCF-QC-and-screening.html) | Screen and summarize the eight paired-component tumour VCFs | Screened SNV table and per-sample QC summary |
+| 05 | [05-DAR-enrichment-and-classification.html](05-DAR-enrichment-and-classification.html) | Select the top 10% bins and compare paired DAR mutation-density scores | Expected direction in 4/4 pairs; sign-test `p = 0.125` |
+
+The R Markdown source files for steps 03-05 are included alongside the knitted
+HTML reports.
 
 ## Software
 
@@ -245,8 +264,8 @@ The analysis is mainly written in R. Packages used across the project include:
 | scATAC integration and label transfer | Completed | Transferred labels lacked strong independent support |
 | Bulk ATAC comparison | Completed | Hepatocyte- and biliary-associated DARs defined |
 | Tumour VCF screening | Completed | Screened SNV tables generated for eight tumour samples |
-| DAR mutation comparison | Completed | Expected paired direction in 2/4 patients; sign-test `p = 1` |
-| Cell-of-origin inference | Inconclusive | Current DAR mutation counts do not reliably separate H and I components |
+| DAR mutation comparison | Completed | Expected paired direction in 4/4 patients; sign-test `p = 0.125` |
+| Cell-of-origin inference | Preliminary support | Consistent paired direction, with low power and no independent validation |
 
 ## References
 

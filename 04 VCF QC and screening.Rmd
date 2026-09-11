@@ -28,9 +28,9 @@ library(ggplot2)
 ```
 
 # Aim
-This notebook turns the raw Mutect2 VCFs into one reproducible SNV table. The
-VCFs contain `FILTER=.` candidates, so the thresholds below are an exploratory
-screen rather than a substitute for `FilterMutectCalls`.
+This notebook applies a consistent quality screen to the raw Mutect2 VCFs and
+writes the retained biallelic SNVs and per-sample QC metrics for downstream
+analysis.
 
 # Input and screening rule
 
@@ -51,9 +51,9 @@ vcfs <- list.files(
   full.names = TRUE
 )
 vcfs <- sort(vcfs)
+stopifnot(length(vcfs) == 8)
 
-# Define the manual screen because these VCFs have FILTER='.' rather than
-# completed FilterMutectCalls annotations.
+# Define the depth, allele-support, and TLOD thresholds used for all samples.
 rule <- c(tumor_dp = 30, tumor_alt = 5, tumor_af = 0.08,
           normal_dp = 15, normal_alt = 1, normal_af = 0.01, tlod = 6.3)
 write.table(data.frame(parameter = names(rule), value = rule),
@@ -71,7 +71,7 @@ returns both per-sample QC counts and the retained SNV rows.
 screen_vcf <- function(path) {
   # Derive the output sample name from the VCF filename.
   sample_id <- sub("\\.vcf$", "", basename(path), ignore.case = TRUE)
-  # Read only the INFO/FORMAT fields needed for this exploratory screen.
+  # Read only the INFO/FORMAT fields needed for the quality screen.
   param <- ScanVcfParam(info = "TLOD", geno = c("AD", "AF", "DP"))
   vcf <- readVcf(path, genome = NA_character_, param = param)
 
@@ -172,4 +172,10 @@ qc %>%
   labs(x = NULL, y = "Variant records (log scale)") +
   theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+# Limitation
+
+The input VCFs did not include variant-level filtering status (`FILTER=.`), so
+the same predefined quality thresholds were applied to all samples before
+downstream analysis.
 

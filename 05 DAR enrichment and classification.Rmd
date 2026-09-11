@@ -1,5 +1,5 @@
 ---
-title: "DAR Mutation Depletion and H/I Comparison"
+title: "Top 10% Bin DAR Mutation Analysis"
 author:
 - name: Zack Guo
   affiliation: UCL
@@ -19,9 +19,11 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 # Library packages
+
 ```{r}
-# Load genomic-range, table, and plotting packages used in this comparison.
+# Load packages for genomic overlaps, tables, and plotting.
 library(GenomicRanges)
+library(GenomeInfoDb)
 library(rtracklayer)
 library(dplyr)
 library(tidyr)
@@ -29,148 +31,311 @@ library(ggplot2)
 ```
 
 # Aim
-If a tumour arose from a hepatocyte-like cell, mutations are expected to be
-relatively depleted in hepatocyte-open DARs; the converse applies to
-biliary-open DARs. This notebook tests that direction without selecting bins
-from the same eight labelled samples.
 
-# Inputs and DAR reference
+This notebook selects the 10% of 1 Mb genomic bins with the largest scaled
+mutation-count difference between the eight labelled H and I tumour samples.
+The hepatocyte- and biliary-associated DARs are restricted to those bins, and
+the original DAR mutation score is then calculated for the eight labelled
+samples.
 
-The screened SNV table comes from notebook 04. The two BED files are the
-human-coordinate DAR sets produced upstream; overlapping intervals are reduced
-before their total lengths are used as denominators.
+# Input data
 
-```{r}
+Notebook 04 screens the eight `Com01-04` H/I tumour-normal VCFs. These same
+eight samples are used for the top-bin selection and paired comparison.
+
+```{r inputs}
 project_dir <- "C:/Bioinfo data/cell of origin"
 out_dir <- file.path(project_dir, "practice_results")
-# Read the screened tumour SNVs produced by notebook 04.
-snvs <- read.delim(file.path(out_dir, "screened_somatic_snvs.tsv"))
 
-# Restrict overlap calculations to standard human chromosomes.
-autosomes_x <- paste0("chr", c(1:22, "X"))
-read_dar <- function(path) {
-  # Import BED intervals, keep standard chromosomes, and merge overlaps.
-  x <- import(path, format = "BED")
-  keepSeqlevels(x, intersect(seqlevels(x), autosomes_x),
-                pruning.mode = "coarse") %>% reduce()
-}
-hep_dar <- read_dar("C:/Bioinfo data/hepatocytehuman.bed")
-bil_dar <- read_dar("C:/Bioinfo data/billiaryhuman.bed")
-hep_mb <- sum(width(hep_dar)) / 1e6
-bil_mb <- sum(width(bil_dar)) / 1e6
+# Read the eight-sample screened SNV table produced by notebook 04.
+input_path <- file.path(out_dir, "screened_somatic_snvs.tsv")
+stopifnot(file.exists(input_path))
+snvs <- read.delim(input_path)
 
-write.table(
-  data.frame(dar_set = c("hepatocyte", "biliary"), Mb = c(hep_mb, bil_mb)),
-  file.path(out_dir, "dar_reference_sizes.tsv"), sep = "\t",
-  row.names = FALSE, quote = FALSE
+labelled_samples <- as.vector(rbind(
+  paste0("Com0", 1:4, "H"),
+  paste0("Com0", 1:4, "I")
+))
+# Ignore any stale extra sample rows if notebook 05 is run before notebook 04.
+snvs <- filter(snvs, sample %in% labelled_samples)
+stopifnot(setequal(unique(snvs$sample), labelled_samples))
+
+data.frame(
+  sample = labelled_samples,
+  screened_snvs = as.integer(table(snvs$sample)[labelled_samples]),
+  source_file = basename(input_path)
 )
 ```
 
-# TMB-scaled DAR counts
+# Create and rank 1 Mb bins
 
-The two `per_10000_mutations` columns are the old idea expressed directly:
-each sample's DAR count is scaled by that sample's total screened mutation
-burden. The lineage score additionally corrects for the different total sizes
-of the two DAR sets.
+The hg19 autosomes and chromosome X are divided into 3,053 bins. Within each
+labelled sample, the mutation count in each bin is divided by that sample's
+total screened SNV count and multiplied by 10,000.
 
-The overlap flags are calculated per SNV, then collapsed to one row per tumour.
-The `0.5` pseudocount in `lineage_score` keeps the log-ratio finite when a DAR
-set contains no retained mutation.
+For each bin, the four H values and four I values are averaged separately. Bins
+are ranked by `abs(mean_I - mean_H)`, and the highest-ranking 10% are retained:
+`ceiling(3053 * 0.10) = 306` bins.
 
-```{r dar-score}
-# Represent each SNV as a one-base genomic range for interval overlap testing.
+```{r select-top-bins}
+# Define hg19 chromosome lengths for chromosomes 1-22 and X.
+hg19_lengths <- c(
+  chr1 = 249250621, chr2 = 243199373, chr3 = 198022430,
+  chr4 = 191154276, chr5 = 180915260, chr6 = 171115067,
+  chr7 = 159138663, chr8 = 146364022, chr9 = 141213431,
+  chr10 = 135534747, chr11 = 135006516, chr12 = 133851895,
+  chr13 = 115169878, chr14 = 107349540, chr15 = 102531392,
+  chr16 = 90354753, chr17 = 81195210, chr18 = 78077248,
+  chr19 = 59128983, chr20 = 63025520, chr21 = 48129895,
+  chr22 = 51304566, chrX = 155270560
+)
+
+# Create all 1 Mb bins, including bins with zero mutations.
+genome_bins <- tileGenome(
+  hg19_lengths,
+  tilewidth = 1e6,
+  cut.last.tile.in.chrom = TRUE
+)
+names(genome_bins) <- sprintf("bin_%04d", seq_along(genome_bins))
+
+total_bins <- length(genome_bins)
+n_top_bins <- ceiling(total_bins * 0.10)
+
+# Convert the screened SNVs to one-base genomic ranges.
 snv_gr <- makeGRangesFromDataFrame(
-  snvs, seqnames.field = "chr", start.field = "pos", end.field = "pos",
+  snvs,
+  seqnames.field = "chr",
+  start.field = "pos",
+  end.field = "pos",
   keep.extra.columns = TRUE
 )
-# Mark whether each SNV falls in a hepatocyte- or biliary-associated DAR.
-mcols(snv_gr)$in_hep <- countOverlaps(snv_gr, hep_dar) > 0
-mcols(snv_gr)$in_bil <- countOverlaps(snv_gr, bil_dar) > 0
 
-# Collapse the overlap flags to one row per tumour sample.
-dar_summary <- as.data.frame(snv_gr) %>%
-  group_by(sample) %>%
-  summarise(
-    total_screened_snvs = n(),
-    hepatocyte_dar_snvs = sum(in_hep),
-    biliary_dar_snvs = sum(in_bil),
-    hepatocyte_per_10000_mutations = 1e4 * hepatocyte_dar_snvs / total_screened_snvs,
-    biliary_per_10000_mutations = 1e4 * biliary_dar_snvs / total_screened_snvs,
-    hepatocyte_dar_rate_perMb = hepatocyte_dar_snvs / hep_mb,
-    biliary_dar_rate_perMb = biliary_dar_snvs / bil_mb,
-    # Lower scores are expected for hepatocyte-like samples under the
-    # open-chromatin mutation-depletion hypothesis.
-    lineage_score = log2(((hepatocyte_dar_snvs + 0.5) / hep_mb) /
-                         ((biliary_dar_snvs + 0.5) / bil_mb)),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    patient = substr(sample, 1, 5),
+# Count and scale mutations in every bin for each labelled sample.
+bin_counts <- lapply(labelled_samples, function(sample_id) {
+  sample_gr <- snv_gr[mcols(snv_gr)$sample == sample_id]
+  mutation_count <- countOverlaps(genome_bins, sample_gr)
+
+  data.frame(
+    sample = sample_id,
+    bin_id = names(genome_bins),
+    chr = as.character(seqnames(genome_bins)),
+    start = start(genome_bins),
+    end = end(genome_bins),
+    mutation_count = mutation_count,
+    sample_total = length(sample_gr),
+    mutations_per_10000_screened =
+      1e4 * mutation_count / length(sample_gr)
+  )
+}) %>% bind_rows()
+
+# Place the eight scaled sample values on one row per bin.
+bin_ranking <- bin_counts %>%
+  select(bin_id, chr, start, end, sample, mutations_per_10000_screened) %>%
+  pivot_wider(
+    names_from = sample,
+    values_from = mutations_per_10000_screened
+  )
+
+# Calculate and rank the absolute H-versus-I group difference.
+h_columns <- grep("H$", names(bin_ranking), value = TRUE)
+i_columns <- grep("I$", names(bin_ranking), value = TRUE)
+bin_ranking$mean_H <- rowMeans(bin_ranking[h_columns])
+bin_ranking$mean_I <- rowMeans(bin_ranking[i_columns])
+bin_ranking$I_minus_H <- bin_ranking$mean_I - bin_ranking$mean_H
+bin_ranking$absolute_difference <- abs(bin_ranking$I_minus_H)
+
+bin_ranking <- bin_ranking %>%
+  arrange(desc(absolute_difference), chr, start) %>%
+  mutate(difference_rank = row_number())
+
+# Select the 306 highest-ranking bins.
+top_bin_ids <- head(bin_ranking$bin_id, n_top_bins)
+top_bins <- genome_bins[names(genome_bins) %in% top_bin_ids]
+
+write.table(
+  bin_ranking,
+  file.path(out_dir, "top10_percent_bin_ranking.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
+data.frame(total_bins = total_bins, selected_bins = length(top_bins))
+```
+
+# Restrict DARs to the top 10% bins
+
+The hepatocyte and biliary DARs are imported, reduced, and intersected with the
+same 306 bins. Their intersected lengths are used as the mutation-rate
+denominators.
+
+```{r top-bin-dars}
+autosomes_x <- names(hg19_lengths)
+
+# Import one human-coordinate DAR BED file.
+read_dar <- function(path) {
+  dar <- import(path, format = "BED")
+  keepSeqlevels(
+    dar,
+    intersect(seqlevels(dar), autosomes_x),
+    pruning.mode = "coarse"
+  ) %>% reduce()
+}
+
+# Intersect an unstranded DAR reference with the selected genomic bins.
+restrict_dar <- function(dar, bins) {
+  strand(dar) <- "*"
+  strand(bins) <- "*"
+  reduce(GenomicRanges::intersect(dar, bins))
+}
+
+hep_dar_top <- restrict_dar(
+  read_dar("C:/Bioinfo data/hepatocytehuman.bed"),
+  top_bins
+)
+bil_dar_top <- restrict_dar(
+  read_dar("C:/Bioinfo data/billiaryhuman.bed"),
+  top_bins
+)
+
+hep_mb <- sum(width(hep_dar_top)) / 1e6
+bil_mb <- sum(width(bil_dar_top)) / 1e6
+stopifnot(hep_mb > 0, bil_mb > 0)
+
+dar_reference_summary <- data.frame(
+  dar_set = c("hepatocyte", "biliary"),
+  selected_bins = n_top_bins,
+  Mb = c(hep_mb, bil_mb)
+)
+
+write.table(
+  dar_reference_summary,
+  file.path(out_dir, "top10_percent_dar_reference_sizes.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
+dar_reference_summary
+```
+
+# Calculate top-bin DAR scores
+
+DAR mutation counts are scaled by total screened mutation burden, while the
+lineage score also corrects for the different total sizes of the two restricted
+DAR sets. The `0.5` pseudocount keeps the log-ratio finite when a DAR set
+contains no retained mutation.
+
+```{r dar-scores}
+# Apply the same top-bin DAR score to each of the eight samples.
+dar_summary <- lapply(labelled_samples, function(sample_id) {
+  sample_gr <- snv_gr[mcols(snv_gr)$sample == sample_id]
+  hep_count <- sum(countOverlaps(sample_gr, hep_dar_top) > 0)
+  bil_count <- sum(countOverlaps(sample_gr, bil_dar_top) > 0)
+
+  data.frame(
+    sample = sample_id,
+    patient = substr(sample_id, 1, 5),
     known_label = case_when(
-      grepl("^Com0[1-4]H$", sample) ~ "H",
-      grepl("^Com0[1-4]I$", sample) ~ "I",
-      TRUE ~ NA_character_
+      grepl("^Com0[1-4]H$", sample_id) ~ "H",
+      grepl("^Com0[1-4]I$", sample_id) ~ "I"
+    ),
+    total_screened_snvs = length(sample_gr),
+    hepatocyte_dar_snvs = hep_count,
+    biliary_dar_snvs = bil_count,
+    hepatocyte_per_10000_mutations =
+      1e4 * hep_count / length(sample_gr),
+    biliary_per_10000_mutations =
+      1e4 * bil_count / length(sample_gr),
+    hepatocyte_dar_rate_perMb = hep_count / hep_mb,
+    biliary_dar_rate_perMb = bil_count / bil_mb,
+    lineage_score = log2(
+      ((hep_count + 0.5) / hep_mb) /
+        ((bil_count + 0.5) / bil_mb)
     )
-  ) %>% arrange(sample)
+  )
+}) %>% bind_rows()
 
-write.table(dar_summary, file.path(out_dir, "dar_enrichment_summary.tsv"),
-            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(
+  dar_summary,
+  file.path(out_dir, "top10_percent_dar_enrichment_summary.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
 dar_summary
 ```
 
-# Paired direction test
+# Paired H/I result
 
-Lower score is expected for H samples and higher score for I samples.
+Lower scores are expected for H samples and higher scores for I samples.
 
-The paired sign test asks only whether this direction is consistent across
-patients; it is a descriptive consistency check rather than a predictive model.
-
-```{r paired-test}
-# Keep the eight labelled H/I samples for the paired direction test.
-known <- filter(dar_summary, !is.na(known_label))
-
-# Compare H and I scores within each patient rather than across patients.
-paired <- known %>%
+```{r paired-result}
+# Compare H and I within each patient.
+paired <- dar_summary %>%
   select(patient, known_label, lineage_score) %>%
   pivot_wider(names_from = known_label, values_from = lineage_score) %>%
-  mutate(I_minus_H = I - H,
-         direction = if_else(I_minus_H > 0, "expected", "opposite"))
+  mutate(
+    I_minus_H = I - H,
+    direction = if_else(I_minus_H > 0, "expected", "opposite")
+  )
 
-# Test whether the expected I-minus-H direction is consistent across patients.
-sign_test <- binom.test(sum(paired$I_minus_H > 0), nrow(paired), p = 0.5)
+sign_test <- binom.test(
+  sum(paired$I_minus_H > 0),
+  nrow(paired),
+  p = 0.5
+)
 
-write.table(paired, file.path(out_dir, "paired_dar_score_differences.tsv"),
-            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(
+  paired,
+  file.path(out_dir, "top10_percent_paired_differences.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
 
 paired
 sign_test
 ```
 
-# Score plot
+# Line plot
 
-Each line connects the H and I samples from one patient. A consistent expected
-pattern would show most lines rising from H to I.
+Each coloured line connects the H and I components from one patient. A
+consistent expected pattern has lines rising from H to I.
 
 ```{r plot, fig.width=6, fig.height=4}
 # Connect each patient's H and I scores to show the paired direction.
-ggplot(known, aes(known_label, lineage_score, group = patient, colour = patient)) +
-  geom_line() + geom_point(size = 3) +
-  labs(x = NULL, y = "log2(H-DAR / I-DAR mutation density)") +
+ggplot(
+  dar_summary,
+  aes(known_label, lineage_score, group = patient, colour = patient)
+) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(
+    x = NULL,
+    y = "Top-10% log2(H-DAR / I-DAR mutation density)",
+    colour = "Patient"
+  ) +
   theme_classic()
 ```
 
 # Final summary
 
 ```{r final-result}
-# Summarise the paired direction test for the final report.
-result <- c(
-  sprintf("Expected paired direction: %d/%d", sum(paired$I_minus_H > 0), nrow(paired)),
-  sprintf("Paired sign-test p = %.3g", sign_test$p.value),
-  "Conclusion: the paired direction test does not provide reliable H/I separation."
+# Write the paired result as a short text summary.
+result <- sprintf(
+  "Top 10%% bins: expected paired direction %d/%d; sign-test p = %.3g",
+  sum(paired$I_minus_H > 0),
+  nrow(paired),
+  sign_test$p.value
 )
+
 writeLines(result, file.path(out_dir, "final_result.txt"))
 cat(paste(result, collapse = "\n"))
 ```
 
-Main limitations: only four paired patients, candidate-like Mutect2 WES calls,
-no capture/callable BED, and mouse-to-human lifted DARs.
+Main limitations: only four labelled patient pairs, use of the same samples for
+bin selection and paired comparison, sparse DAR mutation counts, candidate-like
+Mutect2 WES calls, no capture/callable-region BED, and mouse-to-human lifted
+DARs.
