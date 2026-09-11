@@ -93,11 +93,11 @@ study.
 **Result:** an annotated scRNA object was generated and used as the reference
 for scATAC label transfer.
 
-![UMAP of scRNA clusters](figures/01-scrna-clusters.png)
+<img src="figures/01-scrna-clusters.png" alt="UMAP of scRNA clusters" width="67%">
 
 *UMAP of the 13 scRNA-seq clusters used as the basis for cell-type annotation.*
 
-![Marker overlap with the published reference](figures/01-marker-overlap.png)
+<img src="figures/01-marker-overlap.png" alt="Marker overlap with the published reference" width="67%">
 
 *Marker-gene overlap between the reprocessed clusters (rows) and the published
 reference clusters (columns); the strongest overlaps guided annotation.*
@@ -116,11 +116,11 @@ moderate, concordance with unsupervised clusters was weak, and marker support
 was limited. The scATAC annotation was therefore not used as the final
 cell-type-specific chromatin reference, and the project moved to bulk ATAC-seq.
 
-![Transferred scRNA labels on the scATAC UMAP](figures/02-transferred-labels.png)
+<img src="figures/02-transferred-labels.png" alt="Transferred scRNA labels on the scATAC UMAP" width="67%">
 
 *scRNA-derived labels transferred to the integrated scATAC-seq cells.*
 
-![Consistency between ATAC clusters and transferred labels](figures/02-cluster-label-consistency.png)
+<img src="figures/02-cluster-label-consistency.png" alt="Consistency between ATAC clusters and transferred labels" width="67%">
 
 *Fractions of transferred labels within each unsupervised ATAC cluster. Several
 clusters are divided across multiple labels, indicating limited cluster-level
@@ -139,12 +139,12 @@ hepatocyte-associated peaks. The lifted human-coordinate files contained 1,020
 biliary and 2,704 hepatocyte intervals and became the chromatin references for
 the mutation analysis.
 
-![Bulk ATAC sequencing depth by sample](figures/03-sequencing-depth.png)
+<img src="figures/03-sequencing-depth.png" alt="Bulk ATAC sequencing depth by sample" width="67%">
 
 *Total peak counts across the three hepatocyte and three biliary/BEC bulk
 ATAC-seq samples before differential-accessibility testing.*
 
-![Differential accessibility between BEC and hepatocyte samples](figures/03-differential-accessibility.png)
+<img src="figures/03-differential-accessibility.png" alt="Differential accessibility between BEC and hepatocyte samples" width="67%">
 
 *Differential-accessibility results showing biliary-associated,
 hepatocyte-associated, and non-significant peaks.*
@@ -165,7 +165,7 @@ and `TLOD >= 6.3`. The same thresholds are applied to every sample.
 summary for all eight samples. Depending on the sample, 1,419 to 44,394 SNVs
 passed the screening criteria.
 
-![VCF screening QC across eight tumour samples](figures/04-vcf-screening-qc.png)
+<img src="figures/04-vcf-screening-qc.png" alt="VCF screening QC across eight tumour samples" width="67%">
 
 *Numbers of raw records, standard biallelic SNVs, and retained SNVs after the
 common quality screen; the y-axis is logarithmic.*
@@ -196,7 +196,7 @@ test was `p = 0.125`; the direction was completely consistent in this dataset,
 but the four analysed pairs provide insufficient power for conventional
 statistical significance.
 
-![Paired H and I DAR mutation-density scores](figures/05-paired-dar-score.png)
+<img src="figures/05-paired-dar-score.png" alt="Paired H and I DAR mutation-density scores" width="67%">
 
 *Paired lineage scores for the four patients. Every line rises from H to I,
 showing the expected direction in all four pairs.*
