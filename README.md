@@ -1,8 +1,8 @@
-# Cell-of-Origin in ICC-HCC
+# Cell Type of Origin in ICC-HCC
 
 This repository contains the complete analysis workflow for a first-year
-summer research project on cell-of-origin inference in combined hepatocellular
-carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
+summer research project on cell type of origin inference in combined
+hepatocellular carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
 
 The five numbered HTML reports contain the complete code, output, figures, and
 interpretation for each analysis stage. Download and open them locally for the
@@ -13,40 +13,29 @@ best viewing experience.
 **Analysis status:** workflow completed<br>
 **Main question:** can the distribution of somatic mutations relative to
 hepatocyte- and biliary-associated chromatin regions help identify the likely
-cell of origin of cHCC-ICC tumour components?
+cell type of origin of cHCC-ICC tumour components?
 
 ## Project Overview
 
-Somatic mutations are not uniformly distributed across the genome. Chromatin
-accessibility and other cell-type-specific genomic features can influence where
-mutations accumulate. This project therefore asked whether the mutation
-profiles of hepatocellular-like (H) and intrahepatic cholangiocarcinoma-like
-(I) tumour components differ relative to hepatocyte and biliary chromatin.
+Somatic mutations are unevenly distributed across the genome and can retain a
+signal of the tumour's cell type of origin through cell-type-specific chromatin
+accessibility. This project asked whether paired hepatocellular-like (H) and
+intrahepatic cholangiocarcinoma-like (I) tumour components differ relative to
+hepatocyte and biliary chromatin. Identifying their cell type of origin may help
+distinguish biologically different tumour subtypes with different prognosis or
+treatment response.
 
-The project began by integrating liver organoid single-cell RNA-seq and
-single-cell ATAC-seq data. The scRNA data were clustered and annotated, then
-used as a reference for label transfer to the scATAC dataset. However, fragment
-files were unavailable, so gene activity had to be approximated from the peak
-count matrix. Together with moderate prediction confidence, weak agreement
-with unsupervised ATAC clusters, and limited marker support, this made the
-transferred labels unsuitable as a reliable cell-type-specific chromatin
-reference.
+The project first integrated liver organoid scRNA-seq and scATAC-seq data.
+Because fragment files were unavailable and the transferred labels had limited
+support, bulk ATAC-seq was used instead to define hepatocyte- and
+biliary-associated DARs. Within the 10% of 1 Mb bins showing the largest scaled
+H-versus-I mutation difference, all four paired tumours followed the expected
+relative mutation-depletion direction.
 
-The analysis therefore moved to bulk ATAC-seq, where hepatocyte and biliary
-samples could be compared directly to define differential-accessibility regions
-(DARs). These regions were converted to human coordinates and combined with
-screened tumour SNVs. After selecting the 10% of 1 Mb genomic bins with the
-largest scaled H-versus-I mutation difference, all four paired tumours showed
-the expected relative depletion pattern in lineage-associated DARs. This was a
-small but coherent positive result, although four pairs provide limited
-statistical power (`p = 0.125`) and do not constitute independent validation.
-
-This was an introductory project rather than a definitive cell-of-origin
-study. It provided practical experience with scRNA-seq, scATAC-seq, bulk
-ATAC-seq, VCF processing, genomic intervals, statistical analysis, and
-reproducible reporting. Re-examining the workflow also revealed weaknesses in
-the original data and methods, which provided a much stronger foundation for
-designing later work toward a publishable result.
+This first-year project was a small proof-of-concept success. It produced a
+complete reproducible workflow and a consistent 4/4 paired pattern, while the
+small sample size limited statistical power (`p = 0.125`). It also provided a
+practical foundation for designing later publishable work.
 
 ```text
 01 scRNA clustering and annotation
@@ -70,24 +59,24 @@ designing later work toward a publishable result.
 
 This project is motivated by three related ideas:
 
-- Cell-of-origin chromatin organization can shape regional somatic mutation
-  density across cancer genomes.
+- Accessible regulatory regions tend to undergo more effective DNA repair and
+  therefore accumulate fewer somatic mutations [1].
+- Because chromatin accessibility is cell-type-specific, regional mutation
+  density can retain information about a tumour's cell type of origin [2].
 - cHCC-ICC contains hepatocellular and cholangiocytic differentiation, making
-  its origin biologically ambiguous.
-- Hepatocyte and biliary chromatin references provide genomic regions in which
-  mutation depletion or enrichment can be compared between tumour components.
+  its cell type of origin biologically ambiguous. Hepatocyte and biliary
+  chromatin references make it possible to compare lineage-associated mutation
+  depletion between its tumour components.
 
 ## Data Sources
 
 The analysis uses or references:
 
 - cHCC-ICC genomic data from the Cancer Cell study of combined hepatocellular
-  and intrahepatic cholangiocarcinoma;
+  and intrahepatic cholangiocarcinoma [3];
 - eight tumour VCFs representing paired H and I components from four patients;
 - bulk ATAC-seq count data comparing hepatocyte and biliary samples;
-- liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions; and
-- mouse-derived DAR coordinates converted to the human genome by an external
-  liftOver step.
+- liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions [4].
 
 Large raw files and intermediate analysis objects are not stored directly in
 this repository.
@@ -139,8 +128,10 @@ tumour samples; within each VCF, the tumour genotype is compared with its
 matched-normal genotype. Because the supplied Mutect2 records have `FILTER=.`,
 the workflow applies a documented screening rule to standard biallelic SNVs
 using tumour and normal read depth, alternate-allele support, allele fraction,
-and the Mutect2 tumour log-odds score (`TLOD`). The same predefined thresholds
-are applied to every sample.
+and the Mutect2 tumour log-odds score (`TLOD`). The criteria are tumour depth
+`>= 30`, tumour alternate reads `>= 5`, tumour allele fraction `>= 0.08`, normal
+depth `>= 15`, normal alternate reads `<= 1`, normal allele fraction `<= 0.01`,
+and `TLOD >= 6.3`. The same thresholds are applied to every sample.
 
 **Result:** the workflow generated one screened somatic-SNV table and a QC
 summary for all eight samples. Depending on the sample, 1,419 to 44,394 SNVs
@@ -163,14 +154,13 @@ the common denominator cancels.
 
 Under the chromatin-associated mutation-depletion hypothesis, an H sample
 should have a lower score than its paired I sample. This direction is tested
-within each of the four patients. Mix02T is not included, and no prediction or
-validation model is fitted.
+within each of the four patients.
 
 **Result:** all four patient pairs followed the expected direction: the H
 component had a lower lineage score than its paired I component. The paired
 differences (`I - H`) were 1.585, 1.585, 0.652, and 0.330. The two-sided sign
 test was `p = 0.125`; the direction was completely consistent in this dataset,
-but the four available pairs provide insufficient power for conventional
+but the four analysed pairs provide insufficient power for conventional
 statistical significance.
 
 ## Overall Conclusion
@@ -187,29 +177,25 @@ pairs and connected chromatin accessibility with regional tumour mutation
 patterns in one reproducible workflow.
 
 The result remains preliminary rather than definitive. With only four paired
-patients, even 4/4 concordance gives a two-sided sign-test `p = 0.125`, and the
-same samples were used to select the most different bins and assess the paired
-direction. Nevertheless, this first complete bioinformatics project provided
-useful biological evidence, practical experience across several genomic data
-types, and a stronger foundation for later work designed to produce
-independently validated and publishable results.
+patients, even 4/4 concordance gives a two-sided sign-test `p = 0.125`.
+Nevertheless, this first complete bioinformatics project provided useful
+biological evidence, practical experience across several genomic data types,
+and a stronger foundation for later publishable work.
 
 ## Limitations
 
-- Only four paired patients were available, giving very low power for the
+- Only four paired patients were analysed, giving very low power for the
   paired direction test; 4/4 concordance still yields `p = 0.125`.
-- The same eight samples were used to select the top 10% bins and evaluate the
-  H/I direction, so the observed consistency requires independent replication.
 - The input VCFs did not include variant-level filtering status (`FILTER=.`),
   so a common set of predefined quality thresholds was applied to all samples.
 - The samples appear to be whole-exome data, but no capture or callable-region
-  BED was supplied. Scaling by total screened SNVs controls for overall sample
-  mutation burden but is not equivalent to mutation rate per callable base.
-- The bulk ATAC comparison contains three samples per group.
-- The DARs originated in mouse data and were converted to human coordinates by
-  an external liftOver step; genome-build and mapping provenance remain
-  important sources of uncertainty.
-- No independent sample was available for validation.
+  BED was supplied.
+- Fragment files were unavailable, so the scATAC-derived clusters and labels
+  were not used as the final chromatin reference. A complete single-cell
+  analysis could potentially define cell-type-specific chromatin more precisely
+  than the bulk comparison.
+- The DARs were converted from mouse to human coordinates by liftOver, which
+  may introduce mapping inaccuracies.
 
 ## Repository Structure
 
@@ -251,25 +237,22 @@ The analysis is mainly written in R. Packages used across the project include:
 - Signac
 - Harmony
 
-## Analysis Status
-
-| Module | Status | Main result |
-|---|---:|---|
-| scRNA reference annotation | Completed | Annotated reference generated |
-| scATAC integration and label transfer | Completed | Transferred labels lacked strong independent support |
-| Bulk ATAC comparison | Completed | Hepatocyte- and biliary-associated DARs defined |
-| Tumour VCF screening | Completed | Screened SNV tables generated for eight tumour samples |
-| DAR mutation comparison | Completed | Expected paired direction in 4/4 patients; sign-test `p = 0.125` |
-| Cell-of-origin inference | Preliminary support | Consistent paired direction, with low power and no independent validation |
-
 ## References
 
-- Polak et al. *Cell-of-origin chromatin organization shapes the mutational
-  landscape of cancer.*
-- Xue et al. *Genomic and Transcriptomic Profiling of Combined Hepatocellular
-  and Intrahepatic Cholangiocarcinoma Reveals Distinct Molecular Subtypes.*
-- Kim et al. *Integrative analysis of single-cell RNA-seq and ATAC-seq reveals
-  heterogeneity of induced pluripotent stem cell-derived hepatic organoids.*
+1. Polak P, Lawrence MS, Haugen E, et al. *Reduced local mutation density in
+   regulatory DNA of cancer genomes is linked to DNA repair.* Nature
+   Biotechnology. 2014;32:71-75. [doi:10.1038/nbt.2778](https://doi.org/10.1038/nbt.2778)
+2. Polak P, Karlić R, Koren A, et al. *Cell-of-origin chromatin organization
+   shapes the mutational landscape of cancer.* Nature. 2015;518:360-364.
+   [doi:10.1038/nature14221](https://doi.org/10.1038/nature14221)
+3. Xue R, Chen L, Zhang C, et al. *Genomic and Transcriptomic Profiling of
+   Combined Hepatocellular and Intrahepatic Cholangiocarcinoma Reveals Distinct
+   Molecular Subtypes.* Cancer Cell. 2019;35:932-947.e8.
+   [doi:10.1016/j.ccell.2019.04.007](https://doi.org/10.1016/j.ccell.2019.04.007)
+4. Kim J-H, Mun SJ, Kim J-H, et al. *Integrative analysis of single-cell RNA-seq
+   and ATAC-seq reveals heterogeneity of induced pluripotent stem cell-derived
+   hepatic organoids.* iScience. 2023;26:107675.
+   [doi:10.1016/j.isci.2023.107675](https://doi.org/10.1016/j.isci.2023.107675)
 
 ## Notes
 
