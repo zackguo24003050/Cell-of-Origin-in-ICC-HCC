@@ -6,7 +6,7 @@ The HTML reports should be downloaded and opened locally to view the full source
 
 **Project period:** June 2025 - September 2025  
 **Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed  
-**Current stage:** single-cell RNA/ATAC integration and quality assessment  
+**Current stage:** exploratory integration of single-cell, bulk ATAC, and tumour mutation data  
 **Main question:** can genome-wide mutation-density patterns help infer the likely cell-of-origin of different cHCC-ICC components or subtypes?
 
 ## Project Overview
@@ -77,27 +77,79 @@ The transferred scATAC labels show moderate prediction confidence, weak concorda
 
 This supports the decision to be cautious about using this scATAC dataset as a cell-type-specific chromatin reference.
 
-## Downstream Direction
+## Downstream Analysis Workflow
 
-Bulk ATAC and mutation-density analyses are part of the next stage of the project. Some scripts and preliminary outputs are already included, but this section is intentionally left open for later updates.
+The downstream analysis now follows five documented steps. The final three
+notebooks are exploratory and are deliberately kept separate from the
+single-cell reference work.
 
-To be added:
+### 01. scRNA reference
 
-- bulk ATAC processing summary
-- hepatocyte versus biliary DAR definition
-- mutation-density binning strategy
-- comparison between mutation density and chromatin/DAR regions
-- final cell-of-origin interpretation
+`scRNA clustering and annotating.html` reprocesses the HM/DM liver organoid
+scRNA-seq data, clusters cells, identifies marker genes, and assigns the
+reference cell-type labels used later for ATAC label transfer.
+
+**Result:** a labelled scRNA reference was produced for the scATAC analysis.
+
+### 02. scATAC integration and annotation
+
+`scATAC-integration.html` integrates four HM/DM scATAC samples using LSI and
+Harmony, constructs a peak-based gene-activity assay, and transfers the scRNA
+labels to ATAC cells.
+
+**Result:** label transfer was possible, but prediction scores, cluster
+agreement, and marker support were only moderate/limited. The labels are
+therefore exploratory rather than a high-confidence cell-type reference.
+
+### 03. Bulk ATAC differential analysis
+
+`03 bulk ATAC analysis.Rmd` prepares the bulk ATAC count matrix, models the
+Hepatocyte (H) versus biliary (I/BEC) contrast with DESeq2, annotates peaks,
+and exports significant differential-accessibility regions (DARs) as BED
+files for downstream overlap analysis.
+
+**Result:** hepatocyte-associated and biliary-associated DAR sets were defined
+for use as chromatin references. This step provides the regions, not a final
+cell-of-origin call.
+
+### 04. Tumour VCF screening
+
+`04 VCF QC and screening.Rmd` reads the eight tumour samples (`Com01-04H/I`).
+Each VCF contains tumour and matched-normal columns, but the records lack a
+reliable Mutect2 `FILTER` field, so the notebook applies an explicit
+exploratory screen for standard biallelic SNVs, tumour/normal allele evidence,
+mapping/base-quality support, and common/low-quality exclusions.
+
+**Result:** a screened SNV table and QC summary were generated for the eight
+labelled tumour samples. These are candidate-like WES calls; no capture or
+callable-region BED was supplied, so mutation densities should not be treated
+as calibrated absolute rates.
+
+### 05. DAR mutation comparison
+
+`05 DAR enrichment and classification.Rmd` overlaps the screened SNVs with
+the human-coordinate hepatocyte and biliary DAR BED files. Counts are scaled
+to each sample's total screened mutation burden (`per_10000_mutations`) and
+also normalized by the total size of each DAR set. A paired H-versus-I
+direction test is then applied across the four matched patient pairs.
+
+Mix02T is not part of the current analysis, and no external validation or
+classifier is reported. The notebook is now a descriptive comparison only.
+
+**Result:** the expected direction was not consistent enough to support a
+reliable H/I separation. The result should be interpreted as exploratory,
+given the small number of pairs, candidate-like VCF calls, and missing
+callable-region normalization.
 
 ## Repository Structure
 
 ```text
 .
-+-- scRNA clustering and annotating.Rmd
-+-- scATAC integration.Rmd
-+-- future bulk ATAC analysis file
-+-- future mutation-density analysis file
-+-- future integrative interpretation file
++-- scRNA-clustering-and-annotating.html
++-- scATAC-integration.html
++-- 03 bulk ATAC analysis.Rmd
++-- 04 VCF QC and screening.Rmd
++-- 05 DAR enrichment and classification.Rmd
 +-- README.md
 ```
 
@@ -107,9 +159,9 @@ To be added:
 |---|---|
 | `scRNA clustering and annotating.Rmd` | Reprocesses HM/DM liver organoid scRNA-seq data, annotates clusters, and creates the scRNA reference for ATAC label transfer |
 | `scATAC integration.Rmd` | Integrates HM/DM scATAC-seq data, transfers scRNA labels, and evaluates label quality |
-| Future bulk ATAC file | Placeholder for bulk ATAC processing and DAR-based chromatin reference analysis |
-| Future mutation-density file | Placeholder for tumor mutation-density binning and comparison with chromatin references |
-| Future integration file | Placeholder for final cell-of-origin interpretation |
+| `03 bulk ATAC analysis.Rmd` | Differential bulk ATAC analysis and export of hepatocyte- and biliary-associated DAR BED files |
+| `04 VCF QC and screening.Rmd` | Exploratory screening and QC of the eight tumour VCFs |
+| `05 DAR enrichment and classification.Rmd` | TMB-scaled DAR overlap counts and paired H/I direction test; no validation classifier |
 
 ## Software
 
@@ -136,9 +188,9 @@ The analysis is mainly written in R. Packages used across the project include:
 | scRNA reference annotation | Completed | Used to create the scRNA reference for ATAC label transfer |
 | scATAC integration | Current stage | Includes label transfer and quality assessment |
 | scATAC label quality check | Current stage | Results suggest caution in using transferred labels |
-| Bulk ATAC comparison | To be added | Will document hepatocyte- and biliary-associated chromatin references |
-| Mutation-density comparison | To be added | Will document tumor mutation-density binning and comparison |
-| Final cell-of-origin model | To be added | Will integrate mutation-density and chromatin evidence |
+| Bulk ATAC comparison | Completed, exploratory | DAR reference sets exported for hepatocyte versus biliary comparison |
+| Mutation-density comparison | Completed, exploratory | Eight tumour VCFs screened and overlapped with DAR sets after per-sample scaling |
+| Final cell-of-origin model | Not supported yet | Current paired result does not justify a reliable H/I classifier |
 
 ## References
 
