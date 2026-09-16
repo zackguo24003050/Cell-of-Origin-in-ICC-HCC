@@ -52,7 +52,7 @@ practical foundation for designing later publishable work.
 04 Eight tumour VCFs ----> screened SNVs ----------+
                                                    |
                                                    v
-05 Top-10% bins: DAR mutation-density score and paired direction test
+05 DAR mutation-density score and paired direction test
 ```
 
 ## Scientific Context
