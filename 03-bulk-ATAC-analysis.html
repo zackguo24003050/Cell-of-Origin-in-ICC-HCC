@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2026-09-16" />
+<meta name="date" content="2026-09-17" />
 
 <title>Bulk ATAC Analysis and BED Preparation</title>
 
@@ -2825,7 +2825,7 @@ border-radius: 0px;
 <address class="author_afil">
 UCL<br><a class="author_email" href="mailto:#"><a href="mailto:wegmzgu@ucl.ac.uk" class="email">wegmzgu@ucl.ac.uk</a></a>
 </address>
-<h4 class="date">September 16, 2026</h4>
+<h4 class="date">September 17, 2026</h4>
 
 </div>
 
@@ -3112,52 +3112,56 @@ original project files.</p>
 <span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>biliary_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/billiary.bed&quot;</span></span>
 <span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>hepatocyte_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/hepatocyte.bed&quot;</span></span>
 <span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a></span>
-<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>biliary_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/billiaryhuman.bed&quot;</span></span>
-<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>hepatocyte_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/hepatocytehuman.bed&quot;</span></span>
-<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>all_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/allhuman.bed&quot;</span></span>
-<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a></span>
-<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>make_bed_from_dars <span class="ot">&lt;-</span> <span class="cf">function</span>(dar, output_bed) {</span>
-<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>  <span class="co"># Join significant peak IDs to genomic coordinates.</span></span>
-<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>  bed <span class="ot">&lt;-</span> dar <span class="sc">%&gt;%</span></span>
-<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(peak_id) <span class="sc">%&gt;%</span></span>
-<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>    <span class="fu">left_join</span>(coord_info, <span class="at">by =</span> <span class="st">&quot;peak_id&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(chromStart)) <span class="sc">%&gt;%</span></span>
-<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>    <span class="fu">transmute</span>(</span>
-<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a>      <span class="co"># Convert 1-based closed SAF coordinates to 0-based half-open BED starts.</span></span>
-<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>      <span class="at">chrom =</span> chrom,</span>
-<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>      <span class="at">chromStart =</span> <span class="fu">as.integer</span>(chromStart) <span class="sc">-</span> <span class="dv">1</span><span class="dt">L</span>,</span>
-<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>      <span class="at">chromEnd =</span> <span class="fu">as.integer</span>(chromEnd),</span>
-<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>      <span class="at">peak_id =</span> peak_id</span>
-<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>    )</span>
-<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>  </span>
-<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>  <span class="fu">write.table</span>(</span>
-<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a>    bed,</span>
-<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>    <span class="at">file =</span> output_bed,</span>
-<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>    <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
-<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>    <span class="at">quote =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a>    <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a>    <span class="at">col.names =</span> <span class="cn">FALSE</span></span>
-<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a>  )</span>
-<span id="cb15-34"><a href="#cb15-34" tabindex="-1"></a>  </span>
-<span id="cb15-35"><a href="#cb15-35" tabindex="-1"></a>  bed</span>
-<span id="cb15-36"><a href="#cb15-36" tabindex="-1"></a>}</span>
-<span id="cb15-37"><a href="#cb15-37" tabindex="-1"></a></span>
-<span id="cb15-38"><a href="#cb15-38" tabindex="-1"></a>biliary_bed_df <span class="ot">&lt;-</span> <span class="fu">make_bed_from_dars</span>(</span>
-<span id="cb15-39"><a href="#cb15-39" tabindex="-1"></a>  <span class="at">dar =</span> biliary_dars,</span>
-<span id="cb15-40"><a href="#cb15-40" tabindex="-1"></a>  <span class="at">output_bed =</span> biliary_bed</span>
-<span id="cb15-41"><a href="#cb15-41" tabindex="-1"></a>)</span>
-<span id="cb15-42"><a href="#cb15-42" tabindex="-1"></a></span>
-<span id="cb15-43"><a href="#cb15-43" tabindex="-1"></a>hepatocyte_bed_df <span class="ot">&lt;-</span> <span class="fu">make_bed_from_dars</span>(</span>
-<span id="cb15-44"><a href="#cb15-44" tabindex="-1"></a>  <span class="at">dar =</span> hepatocyte_dars,</span>
-<span id="cb15-45"><a href="#cb15-45" tabindex="-1"></a>  <span class="at">output_bed =</span> hepatocyte_bed</span>
-<span id="cb15-46"><a href="#cb15-46" tabindex="-1"></a>)</span>
-<span id="cb15-47"><a href="#cb15-47" tabindex="-1"></a></span>
-<span id="cb15-48"><a href="#cb15-48" tabindex="-1"></a>bed_summary <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb15-49"><a href="#cb15-49" tabindex="-1"></a>  <span class="at">bed_file =</span> <span class="fu">c</span>(biliary_bed, hepatocyte_bed),</span>
-<span id="cb15-50"><a href="#cb15-50" tabindex="-1"></a>  <span class="at">n_regions =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(biliary_bed_df), <span class="fu">nrow</span>(hepatocyte_bed_df))</span>
-<span id="cb15-51"><a href="#cb15-51" tabindex="-1"></a>)</span>
-<span id="cb15-52"><a href="#cb15-52" tabindex="-1"></a></span>
-<span id="cb15-53"><a href="#cb15-53" tabindex="-1"></a>bed_summary</span></code></pre></div>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a><span class="co"># These human-coordinate files retain their original names from before the</span></span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a><span class="co"># bulk ATAC sample labels were corrected. Their biological identities are</span></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a><span class="co"># therefore swapped here: the old biliary-named file is hepatocyte-associated,</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a><span class="co"># and the old hepatocyte-named file is biliary-associated.</span></span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>hepatocyte_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/billiaryhuman.bed&quot;</span></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>biliary_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/hepatocytehuman.bed&quot;</span></span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>all_human_bed <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/allhuman.bed&quot;</span></span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a></span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>make_bed_from_dars <span class="ot">&lt;-</span> <span class="cf">function</span>(dar, output_bed) {</span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>  <span class="co"># Join significant peak IDs to genomic coordinates.</span></span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>  bed <span class="ot">&lt;-</span> dar <span class="sc">%&gt;%</span></span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(peak_id) <span class="sc">%&gt;%</span></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>    <span class="fu">left_join</span>(coord_info, <span class="at">by =</span> <span class="st">&quot;peak_id&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(chromStart)) <span class="sc">%&gt;%</span></span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>    <span class="fu">transmute</span>(</span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>      <span class="co"># Convert 1-based closed SAF coordinates to 0-based half-open BED starts.</span></span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>      <span class="at">chrom =</span> chrom,</span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>      <span class="at">chromStart =</span> <span class="fu">as.integer</span>(chromStart) <span class="sc">-</span> <span class="dv">1</span><span class="dt">L</span>,</span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>      <span class="at">chromEnd =</span> <span class="fu">as.integer</span>(chromEnd),</span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a>      <span class="at">peak_id =</span> peak_id</span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>    )</span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>  </span>
+<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>  <span class="fu">write.table</span>(</span>
+<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a>    bed,</span>
+<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a>    <span class="at">file =</span> output_bed,</span>
+<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a>    <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
+<span id="cb15-34"><a href="#cb15-34" tabindex="-1"></a>    <span class="at">quote =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-35"><a href="#cb15-35" tabindex="-1"></a>    <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb15-36"><a href="#cb15-36" tabindex="-1"></a>    <span class="at">col.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-37"><a href="#cb15-37" tabindex="-1"></a>  )</span>
+<span id="cb15-38"><a href="#cb15-38" tabindex="-1"></a>  </span>
+<span id="cb15-39"><a href="#cb15-39" tabindex="-1"></a>  bed</span>
+<span id="cb15-40"><a href="#cb15-40" tabindex="-1"></a>}</span>
+<span id="cb15-41"><a href="#cb15-41" tabindex="-1"></a></span>
+<span id="cb15-42"><a href="#cb15-42" tabindex="-1"></a>biliary_bed_df <span class="ot">&lt;-</span> <span class="fu">make_bed_from_dars</span>(</span>
+<span id="cb15-43"><a href="#cb15-43" tabindex="-1"></a>  <span class="at">dar =</span> biliary_dars,</span>
+<span id="cb15-44"><a href="#cb15-44" tabindex="-1"></a>  <span class="at">output_bed =</span> biliary_bed</span>
+<span id="cb15-45"><a href="#cb15-45" tabindex="-1"></a>)</span>
+<span id="cb15-46"><a href="#cb15-46" tabindex="-1"></a></span>
+<span id="cb15-47"><a href="#cb15-47" tabindex="-1"></a>hepatocyte_bed_df <span class="ot">&lt;-</span> <span class="fu">make_bed_from_dars</span>(</span>
+<span id="cb15-48"><a href="#cb15-48" tabindex="-1"></a>  <span class="at">dar =</span> hepatocyte_dars,</span>
+<span id="cb15-49"><a href="#cb15-49" tabindex="-1"></a>  <span class="at">output_bed =</span> hepatocyte_bed</span>
+<span id="cb15-50"><a href="#cb15-50" tabindex="-1"></a>)</span>
+<span id="cb15-51"><a href="#cb15-51" tabindex="-1"></a></span>
+<span id="cb15-52"><a href="#cb15-52" tabindex="-1"></a>bed_summary <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb15-53"><a href="#cb15-53" tabindex="-1"></a>  <span class="at">bed_file =</span> <span class="fu">c</span>(biliary_bed, hepatocyte_bed),</span>
+<span id="cb15-54"><a href="#cb15-54" tabindex="-1"></a>  <span class="at">n_regions =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(biliary_bed_df), <span class="fu">nrow</span>(hepatocyte_bed_df))</span>
+<span id="cb15-55"><a href="#cb15-55" tabindex="-1"></a>)</span>
+<span id="cb15-56"><a href="#cb15-56" tabindex="-1"></a></span>
+<span id="cb15-57"><a href="#cb15-57" tabindex="-1"></a>bed_summary</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":["bed_file"],"name":[1],"type":["chr"],"align":["left"]},{"label":["n_regions"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"C:/Bioinfo data/billiary.bed","2":"2951"},{"1":"C:/Bioinfo data/hepatocyte.bed","2":"1217"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
@@ -3166,30 +3170,29 @@ original project files.</p>
 </div>
 <div id="human-coordinate-bed-files" class="section level1">
 <h1>Human-coordinate BED files</h1>
-<p>The human-coordinate files below came from an external liftover step
-and are the files used for overlap with human cHCC-ICC mutation data.
-Their genome build and provenance should be recorded alongside them.</p>
-<p>The source BED files were converted to human-compatible coordinates
-using an external liftover step. These converted files are used for
-overlap with human cHCC-ICC mutation data.</p>
+<p>The human-coordinate files below came from an external liftOver step
+and are used for overlap with human cHCC-ICC mutation data. Because
+their filenames retain the previous reversed lineage labels, they are
+assigned to their corrected biological identities above.</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>read_bed <span class="ot">&lt;-</span> <span class="cf">function</span>(path) {</span>
 <span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>  <span class="co"># Read a three-column human-coordinate BED as a plain table for summaries.</span></span>
 <span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>  <span class="fu">read.table</span>(path, <span class="at">header =</span> <span class="cn">FALSE</span>, <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
 <span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a>}</span>
 <span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a></span>
-<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co"># These files were generated by an external liftover step.</span></span>
-<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a>biliary_human <span class="ot">&lt;-</span> <span class="fu">read_bed</span>(biliary_human_bed)</span>
-<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>hepatocyte_human <span class="ot">&lt;-</span> <span class="fu">read_bed</span>(hepatocyte_human_bed)</span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co"># These files were generated by an external liftOver step.</span></span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a>hepatocyte_human <span class="ot">&lt;-</span> <span class="fu">read_bed</span>(hepatocyte_human_bed)</span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>biliary_human <span class="ot">&lt;-</span> <span class="fu">read_bed</span>(biliary_human_bed)</span>
 <span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a></span>
 <span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a>human_bed_summary <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a>  <span class="at">bed_file =</span> <span class="fu">c</span>(biliary_human_bed, hepatocyte_human_bed),</span>
-<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a>  <span class="at">n_regions =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(biliary_human), <span class="fu">nrow</span>(hepatocyte_human))</span>
-<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a>)</span>
-<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a></span>
-<span id="cb16-15"><a href="#cb16-15" tabindex="-1"></a>human_bed_summary</span></code></pre></div>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a>  <span class="at">lineage =</span> <span class="fu">c</span>(<span class="st">&quot;Hepatocyte-associated&quot;</span>, <span class="st">&quot;Biliary-associated&quot;</span>),</span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a>  <span class="at">bed_file =</span> <span class="fu">c</span>(hepatocyte_human_bed, biliary_human_bed),</span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a>  <span class="at">n_regions =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(hepatocyte_human), <span class="fu">nrow</span>(biliary_human))</span>
+<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a>)</span>
+<span id="cb16-15"><a href="#cb16-15" tabindex="-1"></a></span>
+<span id="cb16-16"><a href="#cb16-16" tabindex="-1"></a>human_bed_summary</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["bed_file"],"name":[1],"type":["chr"],"align":["left"]},{"label":["n_regions"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"C:/Bioinfo data/billiaryhuman.bed","2":"1020"},{"1":"C:/Bioinfo data/hepatocytehuman.bed","2":"2704"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["lineage"],"name":[1],"type":["chr"],"align":["left"]},{"label":["bed_file"],"name":[2],"type":["chr"],"align":["left"]},{"label":["n_regions"],"name":[3],"type":["int"],"align":["right"]}],"data":[{"1":"Hepatocyte-associated","2":"C:/Bioinfo data/billiaryhuman.bed","3":"1020"},{"1":"Biliary-associated","2":"C:/Bioinfo data/hepatocytehuman.bed","3":"2704"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
@@ -3199,7 +3202,7 @@ overlap with human cHCC-ICC mutation data.</p>
 distribution checks. The individual H and biliary files remain separate
 for notebook 05.</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Combine the two lifted DAR sets for the chromosome distribution check.</span></span>
-<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>all_human <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">rbind</span>(biliary_human, hepatocyte_human))</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>all_human <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">rbind</span>(hepatocyte_human, biliary_human))</span>
 <span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a></span>
 <span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="fu">write.table</span>(</span>
 <span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>  all_human,</span>
@@ -3260,10 +3263,11 @@ one-to-many mappings.</p>
 from bulk ATAC-seq peak counts. The source DARs are then written as BED
 intervals and linked to the existing liftover-derived human-coordinate
 BED files.</p>
-<p>The final <code>allhuman.bed</code> file is the combined
-human-coordinate DAR reference used in the downstream mutation-overlap
-analysis. Because the human-coordinate files come from liftover, they
-should be interpreted as mapped regulatory intervals rather than a
+<p>The final <code>allhuman.bed</code> file is retained as a combined
+reference for the chromosome-distribution check. Notebook 05 reads the
+corrected hepatocyte and biliary human-coordinate BED files separately
+for mutation-overlap analysis. Because these files come from liftOver,
+they should be interpreted as mapped regulatory intervals rather than a
 complete one-to-one representation of the original peak set.</p>
 </div>
 

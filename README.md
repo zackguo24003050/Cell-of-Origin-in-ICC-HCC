@@ -186,9 +186,9 @@ references. The lineage score is the log2 ratio of hepatocyte-DAR to
 biliary-DAR mutation density, with a 0.5 pseudocount to keep the ratio finite
 when no mutation falls in one reference. Dividing by the total length of each
 DAR set accounts for their different genomic coverage. A higher score indicates
-more mutations in hepatocyte-associated DARs relative to biliary-associated
-DARs, whereas a lower score indicates relative depletion in
-hepatocyte-associated DARs.
+higher mutation density in hepatocyte-associated DARs relative to
+biliary-associated DARs, whereas a lower score indicates a lower relative
+hepatocyte-DAR mutation density.
 
 Under the chromatin-associated mutation-depletion hypothesis, an H sample
 should have a lower score than its paired I sample. This direction is tested
@@ -229,8 +229,9 @@ foundation for producing publishable results in subsequent projects.
 ## Limitations
 
 - Only four paired patients were analysed, and few screened SNVs fell within
-  the DAR references. The resulting 2/4 paired direction (`p = 1`) provides
-  little power to detect a consistent relationship.
+  the DAR references, giving the paired direction test very low statistical
+  power. With four pairs, even 4/4 concordance would yield a two-sided sign-test
+  `p = 0.125`.
 - The input VCFs did not include variant-level filtering status (`FILTER=.`),
   so a common set of predefined quality thresholds was applied to all samples.
 - The samples appear to be whole-exome data, but no capture or callable-region
