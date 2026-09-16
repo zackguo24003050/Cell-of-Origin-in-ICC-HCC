@@ -230,8 +230,7 @@ foundation for producing publishable results in subsequent projects.
 
 - Only four paired patients were analysed, and few screened SNVs fell within
   the DAR references, giving the paired direction test very low statistical
-  power. With four pairs, even 4/4 concordance would yield a two-sided sign-test
-  `p = 0.125`.
+  power. 
 - The input VCFs did not include variant-level filtering status (`FILTER=.`),
   so a common set of predefined quality thresholds was applied to all samples.
 - The samples appear to be whole-exome data, but no capture or callable-region
