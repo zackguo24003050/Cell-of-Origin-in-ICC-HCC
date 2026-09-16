@@ -65,19 +65,20 @@ This project is motivated by three related ideas:
   therefore accumulate fewer somatic mutations [1].
 - Because chromatin accessibility is cell-type-specific, regional mutation
   density can retain information about a tumour's cell type of origin [2].
-- cHCC-ICC contains hepatocellular and cholangiocytic differentiation, making
-  its cell type of origin biologically ambiguous. Hepatocyte and biliary
-  chromatin references make it possible to compare lineage-associated mutation
-  depletion between its tumour components.
+- The Cancer Cell study showed that the HCC-like and ICC-like components of
+  combined-type cHCC-ICC are histologically distinct yet arise from a shared
+  tumour clone [3]. Comparing each component with hepatocyte and biliary
+  chromatin references tests whether this phenotypic divergence is accompanied
+  by corresponding lineage-associated mutation patterns.
 
 ## Data Sources
 
 The analysis uses or references:
 
-- cHCC-ICC genomic data from the Cancer Cell study of combined hepatocellular
-  and intrahepatic cholangiocarcinoma [3];
-- eight tumour VCFs representing paired H and I components from four patients;
-- bulk ATAC-seq count data comparing hepatocyte and biliary samples;
+- eight tumour VCFs representing paired HCC-like and ICC-like components from
+  four combined-type cHCC-ICC cases in the Cancer Cell study [3];
+- mouse bulk ATAC-seq count data from three biliary and three hepatocyte
+  samples;
 - liver organoid scRNA-seq and scATAC-seq data from HM and DM conditions [4].
 
 Large raw files and intermediate analysis objects are not stored directly in
@@ -136,10 +137,10 @@ three hepatocyte samples with three biliary/BEC samples using DESeq2. Peaks are
 classified using `padj < 0.05` and `|log2FoldChange| > 1`, joined back to their
 genomic coordinates, and exported as lineage-associated BED files. 
 
-**Result:** the comparison identified 1,217 biliary-associated and 2,951
-hepatocyte-associated peaks. The lifted human-coordinate files contained 1,020
-biliary and 2,704 hepatocyte intervals and became the chromatin references for
-the mutation analysis.
+**Result:** the comparison identified 2,951 biliary-associated and 1,217
+hepatocyte-associated peaks. The existing lifted human-coordinate files were
+reused with their lineage assignments corrected, providing 2,704 biliary and
+1,020 hepatocyte intervals for the mutation analysis.
 
 <img src="figures/03-sequencing-depth.png" alt="Bulk ATAC sequencing depth by sample" width="67%">
 
@@ -174,34 +175,35 @@ common quality screen; the y-axis is logarithmic.*
 
 ### 05. DAR mutation comparison
 
-The final workflow divides chromosomes 1-22 and X into 3,053 1 Mb bins. Within
-each sample, bin mutation counts are scaled per 10,000 screened SNVs. The H and
-I group means are compared in each bin, and the 306 bins with the largest
-absolute difference—the top 10%—are retained. Hepatocyte and biliary DARs are
-then restricted to these bins.
+The final workflow uses all mapped significant hepatocyte- and
+biliary-associated DARs on chromosomes 1-22 and X. Overlapping intervals are
+merged within each reference, giving 1,010 hepatocyte intervals (0.564 Mb) and
+2,696 biliary intervals (1.825 Mb). No genomic bins are selected using the
+tumour mutation data.
 
-For each tumour, mutation density is calculated separately in the restricted
-hepatocyte and biliary DARs. The lineage score is the log2 ratio of
-hepatocyte-DAR to biliary-DAR mutation density, with a 0.5 pseudocount. This
-accounts for the different total lengths of the two DAR sets; scaling by total
-screened mutation burden is equivalent within this within-sample ratio because
-the common denominator cancels.
+For each tumour, mutation density is calculated separately across the two DAR
+references. The lineage score is the log2 ratio of hepatocyte-DAR to
+biliary-DAR mutation density, with a 0.5 pseudocount to keep the ratio finite
+when no mutation falls in one reference. Dividing by the total length of each
+DAR set accounts for their different genomic coverage. A higher score indicates
+more mutations in hepatocyte-associated DARs relative to biliary-associated
+DARs, whereas a lower score indicates relative depletion in
+hepatocyte-associated DARs.
 
 Under the chromatin-associated mutation-depletion hypothesis, an H sample
 should have a lower score than its paired I sample. This direction is tested
 within each of the four patients.
 
-**Result:** all four patient pairs followed the expected direction: the H
-component had a lower lineage score than its paired I component. The paired
-differences (`I - H`) were 1.585, 1.585, 0.652, and 0.330. The two-sided sign
-test was `p = 0.125`; the direction was completely consistent in this dataset,
-but the four analysed pairs provide insufficient power for conventional
-statistical significance.
+**Result:** two patient pairs followed the expected direction and two showed
+the opposite direction. The paired differences (`I - H`) were -1.708, 2.037,
+-0.933, and 0.881 for Com01-Com04, respectively. The two-sided sign test was
+`p = 1`, providing no evidence of a consistent relationship between H/I
+phenotype and the two reference chromatin patterns in these four pairs.
 
 <img src="figures/05-paired-dar-score.png" alt="Paired H and I DAR mutation-density scores" width="67%">
 
-*Paired lineage scores for the four patients. Every line rises from H to I,
-showing the expected direction in all four pairs.*
+*Paired lineage scores for the four patients. Com02 and Com04 rise from H to I,
+whereas Com01 and Com03 show the opposite direction.*
 
 ## Overall Conclusion
 
@@ -209,33 +211,41 @@ The project completed the full path from single-cell reference construction to
 bulk chromatin comparison and tumour mutation analysis. The single-cell ATAC
 labels were not sufficiently well supported to serve as the final reference,
 but bulk ATAC-seq provided hepatocyte- and biliary-associated DAR sets for a
-direct test of the hypothesis. After VCF screening, mutation-burden scaling,
-and top-bin selection, all four H/I pairs showed the predicted relative
-mutation-depletion direction. The project can therefore be considered a small
-proof-of-concept success: it recovered a coherent signal across the available
-pairs and connected chromatin accessibility with regional tumour mutation
-patterns in one reproducible workflow.
+direct test of the hypothesis. In the all-DAR comparison, two H/I pairs showed
+the predicted relative mutation-depletion direction and two showed the opposite
+direction (`p = 1`). The analysis therefore found no consistent evidence that
+divergence into HCC-like and ICC-like phenotypes was accompanied by a
+corresponding shift toward hepatocyte and biliary chromatin-associated mutation
+patterns.
 
-The result remains preliminary rather than definitive. With only four paired
-patients, even 4/4 concordance gives a two-sided sign-test `p = 0.125`.
-Nevertheless, this first complete bioinformatics project provided useful
-biological evidence, practical experience across several genomic data types,
-and a stronger foundation for later publishable work.
+The small cohort and sparse mutation counts within DARs limit how strongly this
+negative result can be interpreted. Nevertheless, this first complete
+bioinformatics project established a reproducible workflow spanning single-cell
+integration, bulk ATAC-seq, VCF processing, genomic intervals, and paired
+statistical analysis. Re-examining the workflow also exposed weaknesses in the
+original data and analysis design, providing a stronger methodological
+foundation for producing publishable results in subsequent projects.
 
 ## Limitations
 
-- Only four paired patients were analysed, giving very low power for the
-  paired direction test; 4/4 concordance still yields `p = 0.125`.
+- Only four paired patients were analysed, and few screened SNVs fell within
+  the DAR references. The resulting 2/4 paired direction (`p = 1`) provides
+  little power to detect a consistent relationship.
 - The input VCFs did not include variant-level filtering status (`FILTER=.`),
   so a common set of predefined quality thresholds was applied to all samples.
 - The samples appear to be whole-exome data, but no capture or callable-region
-  BED was supplied.
+  BED was supplied, leaving the effective callable length of each DAR set
+  uncertain.
 - Fragment files were unavailable, so the scATAC-derived clusters and labels
   were not used as the final chromatin reference. A complete single-cell
   analysis could potentially define cell-type-specific chromatin more precisely
   than the bulk comparison.
-- The DARs were converted from mouse to human coordinates by liftOver, which
-  may introduce mapping inaccuracies.
+- The bulk ATAC references came from mouse hepatocyte and biliary samples and
+  were converted to human coordinates by liftOver. This may introduce mapping
+  inaccuracies and does not directly measure chromatin in the tumour samples.
+- The available mutation calls do not determine whether individual mutations
+  accumulated before or after H/I phenotypic divergence, so this analysis
+  cannot establish the originating normal cell type.
 
 ## Repository Structure
 
@@ -255,9 +265,9 @@ and a stronger foundation for later publishable work.
 |---:|---|---|---|
 | 01 | [01-scRNA-clustering-and-annotating.html](01-scRNA-clustering-and-annotating.html) | Cluster and annotate liver organoid scRNA-seq data | Annotated scRNA reference |
 | 02 | [02-scATAC-integration.html](02-scATAC-integration.html) | Integrate scATAC samples and transfer scRNA labels | Label support was insufficient for the final chromatin reference |
-| 03 | [03-bulk-ATAC-analysis.html](03-bulk-ATAC-analysis.html) | Compare hepatocyte and biliary bulk ATAC-seq and export DARs | Human-coordinate hepatocyte and biliary DAR references |
+| 03 | [03-bulk-ATAC-analysis.html](03-bulk-ATAC-analysis.html) | Compare three biliary and three hepatocyte bulk ATAC-seq samples and export DARs | 2,951 biliary-associated and 1,217 hepatocyte-associated peaks |
 | 04 | [04-VCF-QC-and-screening.html](04-VCF-QC-and-screening.html) | Screen and summarize the eight paired-component tumour VCFs | Screened SNV table and per-sample QC summary |
-| 05 | [05-DAR-enrichment-and-classification.html](05-DAR-enrichment-and-classification.html) | Select the top 10% bins and compare paired DAR mutation-density scores | Expected direction in 4/4 pairs; sign-test `p = 0.125` |
+| 05 | [05-DAR-enrichment-and-classification.html](05-DAR-enrichment-and-classification.html) | Compare paired mutation-density scores across all mapped significant DARs | Expected direction in 2/4 pairs; sign-test `p = 1` |
 
 ## Software
 
