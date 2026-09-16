@@ -36,7 +36,8 @@ mutation-depletion direction, while two showed the opposite direction
 H/I phenotype and the two reference chromatin patterns. As a first-year
 project, the work nevertheless established a complete reproducible workflow
 and clarified important limitations in the available data and original
-analysis design.
+analysis design, providing a stronger methodological foundation for producing
+publishable results in subsequent projects.
 
 ```text
 01 scRNA clustering and annotation
