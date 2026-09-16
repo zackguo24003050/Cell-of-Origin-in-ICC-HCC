@@ -1,8 +1,8 @@
-# Cell Type of Origin in ICC-HCC
+# Chromatin-Associated Mutation Patterns in cHCC-ICC
 
 This repository contains the complete analysis workflow for a first-year student
-summer research project on cell type of origin inference in combined
-hepatocellular carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
+summer research project on regional mutation patterns in combined
+hepatocellular-cholangiocarcinoma (cHCC-ICC).
 
 The five numbered HTML reports contain the complete code, output, figures, and
 interpretation for each analysis stage. Download and open them locally for the
@@ -11,31 +11,32 @@ best viewing experience.
 **Project period:** June 2025 - September 2025<br>
 **Supervisor:** Dr. Gladys Poon, Research Assistant Professor, School of Biomedical Sciences, HKUMed<br>
 **Analysis status:** workflow completed<br>
-**Main question:** can the distribution of somatic mutations relative to
-hepatocyte- and biliary-associated chromatin regions help identify the likely
-cell type of origin of cHCC-ICC tumour components?
+**Main question:** after clonally related tumour cells acquire divergent
+hepatocellular-like and biliary-like phenotypes, do their mutation distributions
+show corresponding relationships with hepatocyte and biliary chromatin?
 
 ## Project Overview
 
-Somatic mutations are unevenly distributed across the genome and can retain a
-signal of the tumour's cell type of origin through cell-type-specific chromatin
-accessibility. This project asked whether paired hepatocellular-like (H) and
-intrahepatic cholangiocarcinoma-like (I) tumour components differ relative to
-hepatocyte and biliary chromatin. Identifying their cell type of origin may help
-distinguish biologically different tumour subtypes with different prognosis or
-treatment response.
+Combined-type cHCC-ICC can contain histologically distinct hepatocellular-like
+(H) and intrahepatic cholangiocarcinoma-like (I) regions that arise from a
+shared tumour clone. Because cell-type-specific chromatin states influence DNA
+repair and regional mutation density, this project asked whether the mutation
+distributions of these clonally related components also diverge toward
+hepatocyte and biliary reference patterns as their phenotypes diverge.
 
 The project first integrated liver organoid scRNA-seq and scATAC-seq data.
 Because fragment files were unavailable and the transferred labels had limited
 support, bulk ATAC-seq was used instead to define hepatocyte- and
-biliary-associated DARs. Within the 10% of 1 Mb bins showing the largest scaled
-H-versus-I mutation difference, all four paired tumours followed the expected
-relative mutation-depletion direction.
+biliary-associated DARs. Screened somatic SNVs from four paired H/I tumours
+were then compared across all mapped significant DARs.
 
-This first-year project was a small proof-of-concept success. It produced a
-complete reproducible workflow and a consistent 4/4 paired pattern, while the
-small sample size limited statistical power (`p = 0.125`). It also provided a
-practical foundation for designing later publishable work.
+Two of the four patient pairs followed the predicted relative
+mutation-depletion direction, while two showed the opposite direction
+(`p = 1`). The data therefore did not show a consistent relationship between
+H/I phenotype and the two reference chromatin patterns. As a first-year
+project, the work nevertheless established a complete reproducible workflow
+and clarified important limitations in the available data and original
+analysis design.
 
 ```text
 01 scRNA clustering and annotation
