@@ -1,6 +1,6 @@
 # Cell Type of Origin in ICC-HCC
 
-This repository contains the complete analysis workflow for a first-year
+This repository contains the complete analysis workflow for a first-year student
 summer research project on cell type of origin inference in combined
 hepatocellular carcinoma and intrahepatic cholangiocarcinoma (cHCC-ICC).
 
