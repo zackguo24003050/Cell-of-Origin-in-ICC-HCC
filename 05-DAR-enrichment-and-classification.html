@@ -10,9 +10,9 @@
 
 
 
-<meta name="date" content="2026-09-11" />
+<meta name="date" content="2026-09-16" />
 
-<title>Top 10% Bin DAR Mutation Analysis</title>
+<title>All-DAR Mutation Analysis</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -2820,12 +2820,12 @@ border-radius: 0px;
 
 
 
-<h1 class="title toc-ignore">Top 10% Bin DAR Mutation Analysis</h1>
+<h1 class="title toc-ignore">All-DAR Mutation Analysis</h1>
 <h4 class="author">Zack Guo</h4>
 <address class="author_afil">
 UCL<br><a class="author_email" href="mailto:#"><a href="mailto:wegmzgu@ucl.ac.uk" class="email">wegmzgu@ucl.ac.uk</a></a>
 </address>
-<h4 class="date">September 11, 2026</h4>
+<h4 class="date">September 16, 2026</h4>
 
 </div>
 
@@ -2842,17 +2842,15 @@ UCL<br><a class="author_email" href="mailto:#"><a href="mailto:wegmzgu@ucl.ac.uk
 </div>
 <div id="aim" class="section level1">
 <h1>Aim</h1>
-<p>This notebook selects the 10% of 1 Mb genomic bins with the largest
-scaled mutation-count difference between the eight labelled H and I
-tumour samples. The hepatocyte- and biliary-associated DARs are
-restricted to those bins, and the original DAR mutation score is then
-calculated for the eight labelled samples.</p>
+<p>This notebook compares mutation density across all mapped significant
+hepatocyte- and biliary-associated DARs. Unlike the previous analysis,
+it does not select genomic bins using the tumour mutation data.</p>
 </div>
 <div id="input-data" class="section level1">
 <h1>Input data</h1>
 <p>Notebook 04 screens the eight <code>Com01-04</code> H/I tumour-normal
-VCFs. These same eight samples are used for the top-bin selection and
-paired comparison.</p>
+VCFs. The same screened SNVs are used here without changing the
+filtering criteria.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>project_dir <span class="ot">&lt;-</span> <span class="st">&quot;C:/Bioinfo data/cell of origin&quot;</span></span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>out_dir <span class="ot">&lt;-</span> <span class="fu">file.path</span>(project_dir, <span class="st">&quot;practice_results&quot;</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
@@ -2865,224 +2863,125 @@ paired comparison.</p>
 <span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">&quot;Com0&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>, <span class="st">&quot;H&quot;</span>),</span>
 <span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">&quot;Com0&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>, <span class="st">&quot;I&quot;</span>)</span>
 <span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>))</span>
-<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="co"># Ignore any stale extra sample rows if notebook 05 is run before notebook 04.</span></span>
-<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>snvs <span class="ot">&lt;-</span> <span class="fu">filter</span>(snvs, sample <span class="sc">%in%</span> labelled_samples)</span>
-<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">setequal</span>(<span class="fu">unique</span>(snvs<span class="sc">$</span>sample), labelled_samples))</span>
-<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a><span class="fu">data.frame</span>(</span>
-<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>  <span class="at">sample =</span> labelled_samples,</span>
-<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  <span class="at">screened_snvs =</span> <span class="fu">as.integer</span>(<span class="fu">table</span>(snvs<span class="sc">$</span>sample)[labelled_samples]),</span>
-<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>  <span class="at">source_file =</span> <span class="fu">basename</span>(input_path)</span>
-<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>)</span></code></pre></div>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>snvs <span class="ot">&lt;-</span> <span class="fu">filter</span>(snvs, sample <span class="sc">%in%</span> labelled_samples)</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">setequal</span>(<span class="fu">unique</span>(snvs<span class="sc">$</span>sample), labelled_samples))</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a><span class="co"># Convert the screened SNVs to one-base genomic ranges.</span></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>snv_gr <span class="ot">&lt;-</span> <span class="fu">makeGRangesFromDataFrame</span>(</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>  snvs,</span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  <span class="at">seqnames.field =</span> <span class="st">&quot;chr&quot;</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>  <span class="at">start.field =</span> <span class="st">&quot;pos&quot;</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>  <span class="at">end.field =</span> <span class="st">&quot;pos&quot;</span>,</span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a>  <span class="at">keep.extra.columns =</span> <span class="cn">TRUE</span></span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a>)</span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a><span class="fu">data.frame</span>(</span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a>  <span class="at">sample =</span> labelled_samples,</span>
+<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a>  <span class="at">screened_snvs =</span> <span class="fu">as.integer</span>(<span class="fu">table</span>(snvs<span class="sc">$</span>sample)[labelled_samples]),</span>
+<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a>  <span class="at">source_file =</span> <span class="fu">basename</span>(input_path)</span>
+<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a>)</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":["sample"],"name":[1],"type":["chr"],"align":["left"]},{"label":["screened_snvs"],"name":[2],"type":["int"],"align":["right"]},{"label":["source_file"],"name":[3],"type":["chr"],"align":["left"]}],"data":[{"1":"Com01H","2":"1926","3":"screened_somatic_snvs.tsv"},{"1":"Com01I","2":"2328","3":"screened_somatic_snvs.tsv"},{"1":"Com02H","2":"2741","3":"screened_somatic_snvs.tsv"},{"1":"Com02I","2":"8410","3":"screened_somatic_snvs.tsv"},{"1":"Com03H","2":"1419","3":"screened_somatic_snvs.tsv"},{"1":"Com03I","2":"5301","3":"screened_somatic_snvs.tsv"},{"1":"Com04H","2":"15103","3":"screened_somatic_snvs.tsv"},{"1":"Com04I","2":"44394","3":"screened_somatic_snvs.tsv"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
-<div id="create-and-rank-1-mb-bins" class="section level1">
-<h1>Create and rank 1 Mb bins</h1>
-<p>The hg19 autosomes and chromosome X are divided into 3,053 bins.
-Within each labelled sample, the mutation count in each bin is divided
-by that sample’s total screened SNV count and multiplied by 10,000.</p>
-<p>For each bin, the four H values and four I values are averaged
-separately. Bins are ranked by <code>abs(mean_I - mean_H)</code>, and
-the highest-ranking 10% are retained:
-<code>ceiling(3053 * 0.10) = 306</code> bins.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Define hg19 chromosome lengths for chromosomes 1-22 and X.</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>hg19_lengths <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">chr1 =</span> <span class="dv">249250621</span>, <span class="at">chr2 =</span> <span class="dv">243199373</span>, <span class="at">chr3 =</span> <span class="dv">198022430</span>,</span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">chr4 =</span> <span class="dv">191154276</span>, <span class="at">chr5 =</span> <span class="dv">180915260</span>, <span class="at">chr6 =</span> <span class="dv">171115067</span>,</span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">chr7 =</span> <span class="dv">159138663</span>, <span class="at">chr8 =</span> <span class="dv">146364022</span>, <span class="at">chr9 =</span> <span class="dv">141213431</span>,</span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">chr10 =</span> <span class="dv">135534747</span>, <span class="at">chr11 =</span> <span class="dv">135006516</span>, <span class="at">chr12 =</span> <span class="dv">133851895</span>,</span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">chr13 =</span> <span class="dv">115169878</span>, <span class="at">chr14 =</span> <span class="dv">107349540</span>, <span class="at">chr15 =</span> <span class="dv">102531392</span>,</span>
-<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">chr16 =</span> <span class="dv">90354753</span>, <span class="at">chr17 =</span> <span class="dv">81195210</span>, <span class="at">chr18 =</span> <span class="dv">78077248</span>,</span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">chr19 =</span> <span class="dv">59128983</span>, <span class="at">chr20 =</span> <span class="dv">63025520</span>, <span class="at">chr21 =</span> <span class="dv">48129895</span>,</span>
-<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="at">chr22 =</span> <span class="dv">51304566</span>, <span class="at">chrX =</span> <span class="dv">155270560</span></span>
-<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>)</span>
+<div id="load-all-lineage-associated-dars" class="section level1">
+<h1>Load all lineage-associated DARs</h1>
+<p>Correcting the bulk ATAC sample identities in notebook 03 reverses
+the biological interpretation of the two existing human-coordinate BED
+files but does not change their coordinates or which peaks are
+significant. Therefore, the previous biliary-named BED is used as the
+corrected hepatocyte reference, and the previous hepatocyte-named BED is
+used as the corrected biliary reference. No new liftOver is
+required.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>autosomes_x <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;chr&quot;</span>, <span class="fu">c</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">22</span>, <span class="st">&quot;X&quot;</span>))</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="co"># Import one human-coordinate DAR BED file and merge overlapping intervals.</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>read_dar <span class="ot">&lt;-</span> <span class="cf">function</span>(path) {</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  dar <span class="ot">&lt;-</span> <span class="fu">import</span>(path, <span class="at">format =</span> <span class="st">&quot;BED&quot;</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="fu">keepSeqlevels</span>(</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>    dar,</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>    <span class="fu">intersect</span>(<span class="fu">seqlevels</span>(dar), autosomes_x),</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>    <span class="at">pruning.mode =</span> <span class="st">&quot;coarse&quot;</span></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> <span class="fu">reduce</span>()</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>}</span>
 <span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co"># Create all 1 Mb bins, including bins with zero mutations.</span></span>
-<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>genome_bins <span class="ot">&lt;-</span> <span class="fu">tileGenome</span>(</span>
-<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>  hg19_lengths,</span>
-<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a>  <span class="at">tilewidth =</span> <span class="fl">1e6</span>,</span>
-<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>  <span class="at">cut.last.tile.in.chrom =</span> <span class="cn">TRUE</span></span>
-<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a>)</span>
-<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a><span class="fu">names</span>(genome_bins) <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(<span class="st">&quot;bin_%04d&quot;</span>, <span class="fu">seq_along</span>(genome_bins))</span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co"># The old BED filenames reflect the previously reversed sample assignment.</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>hep_dar <span class="ot">&lt;-</span> <span class="fu">read_dar</span>(<span class="st">&quot;C:/Bioinfo data/billiaryhuman.bed&quot;</span>)</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>bil_dar <span class="ot">&lt;-</span> <span class="fu">read_dar</span>(<span class="st">&quot;C:/Bioinfo data/hepatocytehuman.bed&quot;</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>hep_mb <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">width</span>(hep_dar)) <span class="sc">/</span> <span class="fl">1e6</span></span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a>bil_mb <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">width</span>(bil_dar)) <span class="sc">/</span> <span class="fl">1e6</span></span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a><span class="fu">stopifnot</span>(hep_mb <span class="sc">&gt;</span> <span class="dv">0</span>, bil_mb <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
 <span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a></span>
-<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a>total_bins <span class="ot">&lt;-</span> <span class="fu">length</span>(genome_bins)</span>
-<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>n_top_bins <span class="ot">&lt;-</span> <span class="fu">ceiling</span>(total_bins <span class="sc">*</span> <span class="fl">0.10</span>)</span>
-<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a></span>
-<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a><span class="co"># Convert the screened SNVs to one-base genomic ranges.</span></span>
-<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>snv_gr <span class="ot">&lt;-</span> <span class="fu">makeGRangesFromDataFrame</span>(</span>
-<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a>  snvs,</span>
-<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a>  <span class="at">seqnames.field =</span> <span class="st">&quot;chr&quot;</span>,</span>
-<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>  <span class="at">start.field =</span> <span class="st">&quot;pos&quot;</span>,</span>
-<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a>  <span class="at">end.field =</span> <span class="st">&quot;pos&quot;</span>,</span>
-<span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a>  <span class="at">keep.extra.columns =</span> <span class="cn">TRUE</span></span>
-<span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>)</span>
-<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a></span>
-<span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a><span class="co"># Count and scale mutations in every bin for each labelled sample.</span></span>
-<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>bin_counts <span class="ot">&lt;-</span> <span class="fu">lapply</span>(labelled_samples, <span class="cf">function</span>(sample_id) {</span>
-<span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>  sample_gr <span class="ot">&lt;-</span> snv_gr[<span class="fu">mcols</span>(snv_gr)<span class="sc">$</span>sample <span class="sc">==</span> sample_id]</span>
-<span id="cb3-36"><a href="#cb3-36" tabindex="-1"></a>  mutation_count <span class="ot">&lt;-</span> <span class="fu">countOverlaps</span>(genome_bins, sample_gr)</span>
-<span id="cb3-37"><a href="#cb3-37" tabindex="-1"></a></span>
-<span id="cb3-38"><a href="#cb3-38" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
-<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a>    <span class="at">sample =</span> sample_id,</span>
-<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a>    <span class="at">bin_id =</span> <span class="fu">names</span>(genome_bins),</span>
-<span id="cb3-41"><a href="#cb3-41" tabindex="-1"></a>    <span class="at">chr =</span> <span class="fu">as.character</span>(<span class="fu">seqnames</span>(genome_bins)),</span>
-<span id="cb3-42"><a href="#cb3-42" tabindex="-1"></a>    <span class="at">start =</span> <span class="fu">start</span>(genome_bins),</span>
-<span id="cb3-43"><a href="#cb3-43" tabindex="-1"></a>    <span class="at">end =</span> <span class="fu">end</span>(genome_bins),</span>
-<span id="cb3-44"><a href="#cb3-44" tabindex="-1"></a>    <span class="at">mutation_count =</span> mutation_count,</span>
-<span id="cb3-45"><a href="#cb3-45" tabindex="-1"></a>    <span class="at">sample_total =</span> <span class="fu">length</span>(sample_gr),</span>
-<span id="cb3-46"><a href="#cb3-46" tabindex="-1"></a>    <span class="at">mutations_per_10000_screened =</span></span>
-<span id="cb3-47"><a href="#cb3-47" tabindex="-1"></a>      <span class="fl">1e4</span> <span class="sc">*</span> mutation_count <span class="sc">/</span> <span class="fu">length</span>(sample_gr)</span>
-<span id="cb3-48"><a href="#cb3-48" tabindex="-1"></a>  )</span>
-<span id="cb3-49"><a href="#cb3-49" tabindex="-1"></a>}) <span class="sc">%&gt;%</span> <span class="fu">bind_rows</span>()</span>
-<span id="cb3-50"><a href="#cb3-50" tabindex="-1"></a></span>
-<span id="cb3-51"><a href="#cb3-51" tabindex="-1"></a><span class="co"># Place the eight scaled sample values on one row per bin.</span></span>
-<span id="cb3-52"><a href="#cb3-52" tabindex="-1"></a>bin_ranking <span class="ot">&lt;-</span> bin_counts <span class="sc">%&gt;%</span></span>
-<span id="cb3-53"><a href="#cb3-53" tabindex="-1"></a>  <span class="fu">select</span>(bin_id, chr, start, end, sample, mutations_per_10000_screened) <span class="sc">%&gt;%</span></span>
-<span id="cb3-54"><a href="#cb3-54" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(</span>
-<span id="cb3-55"><a href="#cb3-55" tabindex="-1"></a>    <span class="at">names_from =</span> sample,</span>
-<span id="cb3-56"><a href="#cb3-56" tabindex="-1"></a>    <span class="at">values_from =</span> mutations_per_10000_screened</span>
-<span id="cb3-57"><a href="#cb3-57" tabindex="-1"></a>  )</span>
-<span id="cb3-58"><a href="#cb3-58" tabindex="-1"></a></span>
-<span id="cb3-59"><a href="#cb3-59" tabindex="-1"></a><span class="co"># Calculate and rank the absolute H-versus-I group difference.</span></span>
-<span id="cb3-60"><a href="#cb3-60" tabindex="-1"></a>h_columns <span class="ot">&lt;-</span> <span class="fu">grep</span>(<span class="st">&quot;H$&quot;</span>, <span class="fu">names</span>(bin_ranking), <span class="at">value =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb3-61"><a href="#cb3-61" tabindex="-1"></a>i_columns <span class="ot">&lt;-</span> <span class="fu">grep</span>(<span class="st">&quot;I$&quot;</span>, <span class="fu">names</span>(bin_ranking), <span class="at">value =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb3-62"><a href="#cb3-62" tabindex="-1"></a>bin_ranking<span class="sc">$</span>mean_H <span class="ot">&lt;-</span> <span class="fu">rowMeans</span>(bin_ranking[h_columns])</span>
-<span id="cb3-63"><a href="#cb3-63" tabindex="-1"></a>bin_ranking<span class="sc">$</span>mean_I <span class="ot">&lt;-</span> <span class="fu">rowMeans</span>(bin_ranking[i_columns])</span>
-<span id="cb3-64"><a href="#cb3-64" tabindex="-1"></a>bin_ranking<span class="sc">$</span>I_minus_H <span class="ot">&lt;-</span> bin_ranking<span class="sc">$</span>mean_I <span class="sc">-</span> bin_ranking<span class="sc">$</span>mean_H</span>
-<span id="cb3-65"><a href="#cb3-65" tabindex="-1"></a>bin_ranking<span class="sc">$</span>absolute_difference <span class="ot">&lt;-</span> <span class="fu">abs</span>(bin_ranking<span class="sc">$</span>I_minus_H)</span>
-<span id="cb3-66"><a href="#cb3-66" tabindex="-1"></a></span>
-<span id="cb3-67"><a href="#cb3-67" tabindex="-1"></a>bin_ranking <span class="ot">&lt;-</span> bin_ranking <span class="sc">%&gt;%</span></span>
-<span id="cb3-68"><a href="#cb3-68" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(absolute_difference), chr, start) <span class="sc">%&gt;%</span></span>
-<span id="cb3-69"><a href="#cb3-69" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">difference_rank =</span> <span class="fu">row_number</span>())</span>
-<span id="cb3-70"><a href="#cb3-70" tabindex="-1"></a></span>
-<span id="cb3-71"><a href="#cb3-71" tabindex="-1"></a><span class="co"># Select the 306 highest-ranking bins.</span></span>
-<span id="cb3-72"><a href="#cb3-72" tabindex="-1"></a>top_bin_ids <span class="ot">&lt;-</span> <span class="fu">head</span>(bin_ranking<span class="sc">$</span>bin_id, n_top_bins)</span>
-<span id="cb3-73"><a href="#cb3-73" tabindex="-1"></a>top_bins <span class="ot">&lt;-</span> genome_bins[<span class="fu">names</span>(genome_bins) <span class="sc">%in%</span> top_bin_ids]</span>
-<span id="cb3-74"><a href="#cb3-74" tabindex="-1"></a></span>
-<span id="cb3-75"><a href="#cb3-75" tabindex="-1"></a><span class="fu">write.table</span>(</span>
-<span id="cb3-76"><a href="#cb3-76" tabindex="-1"></a>  bin_ranking,</span>
-<span id="cb3-77"><a href="#cb3-77" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;top10_percent_bin_ranking.tsv&quot;</span>),</span>
-<span id="cb3-78"><a href="#cb3-78" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
-<span id="cb3-79"><a href="#cb3-79" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb3-80"><a href="#cb3-80" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
-<span id="cb3-81"><a href="#cb3-81" tabindex="-1"></a>)</span>
-<span id="cb3-82"><a href="#cb3-82" tabindex="-1"></a></span>
-<span id="cb3-83"><a href="#cb3-83" tabindex="-1"></a><span class="fu">data.frame</span>(<span class="at">total_bins =</span> total_bins, <span class="at">selected_bins =</span> <span class="fu">length</span>(top_bins))</span></code></pre></div>
+<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a>dar_reference_summary <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>  <span class="at">dar_set =</span> <span class="fu">c</span>(<span class="st">&quot;hepatocyte&quot;</span>, <span class="st">&quot;biliary&quot;</span>),</span>
+<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a>  <span class="at">n_intervals =</span> <span class="fu">c</span>(<span class="fu">length</span>(hep_dar), <span class="fu">length</span>(bil_dar)),</span>
+<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a>  <span class="at">Mb =</span> <span class="fu">c</span>(hep_mb, bil_mb)</span>
+<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>)</span>
+<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a><span class="fu">write.table</span>(</span>
+<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>  dar_reference_summary,</span>
+<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;all_dar_reference_sizes.tsv&quot;</span>),</span>
+<span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
+<span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
+<span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a>)</span>
+<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>dar_reference_summary</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["total_bins"],"name":[1],"type":["int"],"align":["right"]},{"label":["selected_bins"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"3053","2":"306"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["dar_set"],"name":[1],"type":["chr"],"align":["left"]},{"label":["n_intervals"],"name":[2],"type":["int"],"align":["right"]},{"label":["Mb"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"hepatocyte","2":"1010","3":"0.563686"},{"1":"biliary","2":"2696","3":"1.825106"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
-<div id="restrict-dars-to-the-top-10-bins" class="section level1">
-<h1>Restrict DARs to the top 10% bins</h1>
-<p>The hepatocyte and biliary DARs are imported, reduced, and
-intersected with the same 306 bins. Their intersected lengths are used
-as the mutation-rate denominators.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>autosomes_x <span class="ot">&lt;-</span> <span class="fu">names</span>(hg19_lengths)</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co"># Import one human-coordinate DAR BED file.</span></span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>read_dar <span class="ot">&lt;-</span> <span class="cf">function</span>(path) {</span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  dar <span class="ot">&lt;-</span> <span class="fu">import</span>(path, <span class="at">format =</span> <span class="st">&quot;BED&quot;</span>)</span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="fu">keepSeqlevels</span>(</span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>    dar,</span>
-<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>    <span class="fu">intersect</span>(<span class="fu">seqlevels</span>(dar), autosomes_x),</span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>    <span class="at">pruning.mode =</span> <span class="st">&quot;coarse&quot;</span></span>
-<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> <span class="fu">reduce</span>()</span>
-<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>}</span>
-<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a><span class="co"># Intersect an unstranded DAR reference with the selected genomic bins.</span></span>
-<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>restrict_dar <span class="ot">&lt;-</span> <span class="cf">function</span>(dar, bins) {</span>
-<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>  <span class="fu">strand</span>(dar) <span class="ot">&lt;-</span> <span class="st">&quot;*&quot;</span></span>
-<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>  <span class="fu">strand</span>(bins) <span class="ot">&lt;-</span> <span class="st">&quot;*&quot;</span></span>
-<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>  <span class="fu">reduce</span>(GenomicRanges<span class="sc">::</span><span class="fu">intersect</span>(dar, bins))</span>
-<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>}</span>
-<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a></span>
-<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a>hep_dar_top <span class="ot">&lt;-</span> <span class="fu">restrict_dar</span>(</span>
-<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>  <span class="fu">read_dar</span>(<span class="st">&quot;C:/Bioinfo data/hepatocytehuman.bed&quot;</span>),</span>
-<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a>  top_bins</span>
-<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a>)</span>
-<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a>bil_dar_top <span class="ot">&lt;-</span> <span class="fu">restrict_dar</span>(</span>
-<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a>  <span class="fu">read_dar</span>(<span class="st">&quot;C:/Bioinfo data/billiaryhuman.bed&quot;</span>),</span>
-<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a>  top_bins</span>
-<span id="cb4-27"><a href="#cb4-27" tabindex="-1"></a>)</span>
-<span id="cb4-28"><a href="#cb4-28" tabindex="-1"></a></span>
-<span id="cb4-29"><a href="#cb4-29" tabindex="-1"></a>hep_mb <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">width</span>(hep_dar_top)) <span class="sc">/</span> <span class="fl">1e6</span></span>
-<span id="cb4-30"><a href="#cb4-30" tabindex="-1"></a>bil_mb <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">width</span>(bil_dar_top)) <span class="sc">/</span> <span class="fl">1e6</span></span>
-<span id="cb4-31"><a href="#cb4-31" tabindex="-1"></a><span class="fu">stopifnot</span>(hep_mb <span class="sc">&gt;</span> <span class="dv">0</span>, bil_mb <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
-<span id="cb4-32"><a href="#cb4-32" tabindex="-1"></a></span>
-<span id="cb4-33"><a href="#cb4-33" tabindex="-1"></a>dar_reference_summary <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb4-34"><a href="#cb4-34" tabindex="-1"></a>  <span class="at">dar_set =</span> <span class="fu">c</span>(<span class="st">&quot;hepatocyte&quot;</span>, <span class="st">&quot;biliary&quot;</span>),</span>
-<span id="cb4-35"><a href="#cb4-35" tabindex="-1"></a>  <span class="at">selected_bins =</span> n_top_bins,</span>
-<span id="cb4-36"><a href="#cb4-36" tabindex="-1"></a>  <span class="at">Mb =</span> <span class="fu">c</span>(hep_mb, bil_mb)</span>
-<span id="cb4-37"><a href="#cb4-37" tabindex="-1"></a>)</span>
-<span id="cb4-38"><a href="#cb4-38" tabindex="-1"></a></span>
-<span id="cb4-39"><a href="#cb4-39" tabindex="-1"></a><span class="fu">write.table</span>(</span>
-<span id="cb4-40"><a href="#cb4-40" tabindex="-1"></a>  dar_reference_summary,</span>
-<span id="cb4-41"><a href="#cb4-41" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;top10_percent_dar_reference_sizes.tsv&quot;</span>),</span>
-<span id="cb4-42"><a href="#cb4-42" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
-<span id="cb4-43"><a href="#cb4-43" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb4-44"><a href="#cb4-44" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
-<span id="cb4-45"><a href="#cb4-45" tabindex="-1"></a>)</span>
-<span id="cb4-46"><a href="#cb4-46" tabindex="-1"></a></span>
-<span id="cb4-47"><a href="#cb4-47" tabindex="-1"></a>dar_reference_summary</span></code></pre></div>
+<div id="calculate-all-dar-scores" class="section level1">
+<h1>Calculate all-DAR scores</h1>
+<p>The lineage score corrects for the different total sizes of the two
+DAR sets. The <code>0.5</code> pseudocount keeps the log-ratio finite
+when a DAR set contains no retained mutation.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Apply the same all-DAR score to each of the eight samples.</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>dar_summary <span class="ot">&lt;-</span> <span class="fu">lapply</span>(labelled_samples, <span class="cf">function</span>(sample_id) {</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>  sample_gr <span class="ot">&lt;-</span> snv_gr[<span class="fu">mcols</span>(snv_gr)<span class="sc">$</span>sample <span class="sc">==</span> sample_id]</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  hep_count <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">countOverlaps</span>(sample_gr, hep_dar) <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  bil_count <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">countOverlaps</span>(sample_gr, bil_dar) <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>    <span class="at">sample =</span> sample_id,</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>    <span class="at">patient =</span> <span class="fu">substr</span>(sample_id, <span class="dv">1</span>, <span class="dv">5</span>),</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>    <span class="at">known_label =</span> <span class="fu">case_when</span>(</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>      <span class="fu">grepl</span>(<span class="st">&quot;^Com0[1-4]H$&quot;</span>, sample_id) <span class="sc">~</span> <span class="st">&quot;H&quot;</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>      <span class="fu">grepl</span>(<span class="st">&quot;^Com0[1-4]I$&quot;</span>, sample_id) <span class="sc">~</span> <span class="st">&quot;I&quot;</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>    ),</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>    <span class="at">total_screened_snvs =</span> <span class="fu">length</span>(sample_gr),</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>    <span class="at">hepatocyte_dar_snvs =</span> hep_count,</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>    <span class="at">biliary_dar_snvs =</span> bil_count,</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>    <span class="at">hepatocyte_per_10000_mutations =</span></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>      <span class="fl">1e4</span> <span class="sc">*</span> hep_count <span class="sc">/</span> <span class="fu">length</span>(sample_gr),</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>    <span class="at">biliary_per_10000_mutations =</span></span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a>      <span class="fl">1e4</span> <span class="sc">*</span> bil_count <span class="sc">/</span> <span class="fu">length</span>(sample_gr),</span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>    <span class="at">hepatocyte_dar_rate_perMb =</span> hep_count <span class="sc">/</span> hep_mb,</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a>    <span class="at">biliary_dar_rate_perMb =</span> bil_count <span class="sc">/</span> bil_mb,</span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a>    <span class="at">lineage_score =</span> <span class="fu">log2</span>(</span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a>      ((hep_count <span class="sc">+</span> <span class="fl">0.5</span>) <span class="sc">/</span> hep_mb) <span class="sc">/</span></span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a>        ((bil_count <span class="sc">+</span> <span class="fl">0.5</span>) <span class="sc">/</span> bil_mb)</span>
+<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a>    )</span>
+<span id="cb4-27"><a href="#cb4-27" tabindex="-1"></a>  )</span>
+<span id="cb4-28"><a href="#cb4-28" tabindex="-1"></a>}) <span class="sc">%&gt;%</span> <span class="fu">bind_rows</span>()</span>
+<span id="cb4-29"><a href="#cb4-29" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" tabindex="-1"></a><span class="fu">write.table</span>(</span>
+<span id="cb4-31"><a href="#cb4-31" tabindex="-1"></a>  dar_summary,</span>
+<span id="cb4-32"><a href="#cb4-32" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;all_dar_enrichment_summary.tsv&quot;</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
+<span id="cb4-34"><a href="#cb4-34" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb4-35"><a href="#cb4-35" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
+<span id="cb4-36"><a href="#cb4-36" tabindex="-1"></a>)</span>
+<span id="cb4-37"><a href="#cb4-37" tabindex="-1"></a></span>
+<span id="cb4-38"><a href="#cb4-38" tabindex="-1"></a>dar_summary</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["dar_set"],"name":[1],"type":["chr"],"align":["left"]},{"label":["selected_bins"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["Mb"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"hepatocyte","2":"306","3":"0.349085"},{"1":"biliary","2":"306","3":"0.065952"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
-  </script>
-</div>
-</div>
-<div id="calculate-top-bin-dar-scores" class="section level1">
-<h1>Calculate top-bin DAR scores</h1>
-<p>DAR mutation counts are scaled by total screened mutation burden,
-while the lineage score also corrects for the different total sizes of
-the two restricted DAR sets. The <code>0.5</code> pseudocount keeps the
-log-ratio finite when a DAR set contains no retained mutation.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Apply the same top-bin DAR score to each of the eight samples.</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>dar_summary <span class="ot">&lt;-</span> <span class="fu">lapply</span>(labelled_samples, <span class="cf">function</span>(sample_id) {</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  sample_gr <span class="ot">&lt;-</span> snv_gr[<span class="fu">mcols</span>(snv_gr)<span class="sc">$</span>sample <span class="sc">==</span> sample_id]</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  hep_count <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">countOverlaps</span>(sample_gr, hep_dar_top) <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  bil_count <span class="ot">&lt;-</span> <span class="fu">sum</span>(<span class="fu">countOverlaps</span>(sample_gr, bil_dar_top) <span class="sc">&gt;</span> <span class="dv">0</span>)</span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
-<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>    <span class="at">sample =</span> sample_id,</span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>    <span class="at">patient =</span> <span class="fu">substr</span>(sample_id, <span class="dv">1</span>, <span class="dv">5</span>),</span>
-<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>    <span class="at">known_label =</span> <span class="fu">case_when</span>(</span>
-<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>      <span class="fu">grepl</span>(<span class="st">&quot;^Com0[1-4]H$&quot;</span>, sample_id) <span class="sc">~</span> <span class="st">&quot;H&quot;</span>,</span>
-<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>      <span class="fu">grepl</span>(<span class="st">&quot;^Com0[1-4]I$&quot;</span>, sample_id) <span class="sc">~</span> <span class="st">&quot;I&quot;</span></span>
-<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>    ),</span>
-<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>    <span class="at">total_screened_snvs =</span> <span class="fu">length</span>(sample_gr),</span>
-<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>    <span class="at">hepatocyte_dar_snvs =</span> hep_count,</span>
-<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a>    <span class="at">biliary_dar_snvs =</span> bil_count,</span>
-<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>    <span class="at">hepatocyte_per_10000_mutations =</span></span>
-<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>      <span class="fl">1e4</span> <span class="sc">*</span> hep_count <span class="sc">/</span> <span class="fu">length</span>(sample_gr),</span>
-<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a>    <span class="at">biliary_per_10000_mutations =</span></span>
-<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>      <span class="fl">1e4</span> <span class="sc">*</span> bil_count <span class="sc">/</span> <span class="fu">length</span>(sample_gr),</span>
-<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>    <span class="at">hepatocyte_dar_rate_perMb =</span> hep_count <span class="sc">/</span> hep_mb,</span>
-<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a>    <span class="at">biliary_dar_rate_perMb =</span> bil_count <span class="sc">/</span> bil_mb,</span>
-<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a>    <span class="at">lineage_score =</span> <span class="fu">log2</span>(</span>
-<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a>      ((hep_count <span class="sc">+</span> <span class="fl">0.5</span>) <span class="sc">/</span> hep_mb) <span class="sc">/</span></span>
-<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a>        ((bil_count <span class="sc">+</span> <span class="fl">0.5</span>) <span class="sc">/</span> bil_mb)</span>
-<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a>    )</span>
-<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a>  )</span>
-<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a>}) <span class="sc">%&gt;%</span> <span class="fu">bind_rows</span>()</span>
-<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a></span>
-<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a><span class="fu">write.table</span>(</span>
-<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a>  dar_summary,</span>
-<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;top10_percent_dar_enrichment_summary.tsv&quot;</span>),</span>
-<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
-<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
-<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a>)</span>
-<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a></span>
-<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a>dar_summary</span></code></pre></div>
-<div data-pagedtable="false">
-<script data-pagedtable-source type="application/json">
-{"columns":[{"label":["sample"],"name":[1],"type":["chr"],"align":["left"]},{"label":["patient"],"name":[2],"type":["chr"],"align":["left"]},{"label":["known_label"],"name":[3],"type":["chr"],"align":["left"]},{"label":["total_screened_snvs"],"name":[4],"type":["int"],"align":["right"]},{"label":["hepatocyte_dar_snvs"],"name":[5],"type":["int"],"align":["right"]},{"label":["biliary_dar_snvs"],"name":[6],"type":["int"],"align":["right"]},{"label":["hepatocyte_per_10000_mutations"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["biliary_per_10000_mutations"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["hepatocyte_dar_rate_perMb"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["biliary_dar_rate_perMb"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["lineage_score"],"name":[11],"type":["dbl"],"align":["right"]}],"data":[{"1":"Com01H","2":"Com01","3":"H","4":"1926","5":"2","6":"1","7":"10.384216","8":"5.192108","9":"5.729264","10":"15.16254","11":"-1.66712446"},{"1":"Com01I","2":"Com01","3":"I","4":"2328","5":"2","6":"0","7":"8.591065","8":"0.000000","9":"5.729264","10":"0.00000","11":"-0.08216196"},{"1":"Com02H","2":"Com02","3":"H","4":"2741","5":"1","6":"0","7":"3.648304","8":"0.000000","9":"2.864632","10":"0.00000","11":"-0.81912755"},{"1":"Com02I","2":"Com02","3":"I","4":"8410","5":"4","6":"0","7":"4.756243","8":"0.000000","9":"11.458527","10":"0.00000","11":"0.76583495"},{"1":"Com03H","2":"Com03","3":"H","4":"1419","5":"3","6":"0","7":"21.141649","8":"0.000000","9":"8.593895","10":"0.00000","11":"0.40326487"},{"1":"Com03I","2":"Com03","3":"I","4":"5301","5":"5","6":"0","7":"9.432183","8":"0.000000","9":"14.323159","10":"0.00000","11":"1.05534157"},{"1":"Com04H","2":"Com04","3":"H","4":"15103","5":"8","6":"2","7":"5.296961","8":"1.324240","9":"22.917055","10":"30.32508","11":"-0.63855530"},{"1":"Com04I","2":"Com04","3":"I","4":"44394","5":"23","6":"5","7":"5.180880","8":"1.126278","9":"65.886532","10":"75.81271","11":"-0.30893282"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["sample"],"name":[1],"type":["chr"],"align":["left"]},{"label":["patient"],"name":[2],"type":["chr"],"align":["left"]},{"label":["known_label"],"name":[3],"type":["chr"],"align":["left"]},{"label":["total_screened_snvs"],"name":[4],"type":["int"],"align":["right"]},{"label":["hepatocyte_dar_snvs"],"name":[5],"type":["int"],"align":["right"]},{"label":["biliary_dar_snvs"],"name":[6],"type":["int"],"align":["right"]},{"label":["hepatocyte_per_10000_mutations"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["biliary_per_10000_mutations"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["hepatocyte_dar_rate_perMb"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["biliary_dar_rate_perMb"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["lineage_score"],"name":[11],"type":["dbl"],"align":["right"]}],"data":[{"1":"Com01H","2":"Com01","3":"H","4":"1926","5":"3","6":"4","7":"15.576324","8":"20.76843","9":"5.322112","10":"2.191654","11":"1.3324465"},{"1":"Com01I","2":"Com01","3":"I","4":"2328","5":"2","6":"10","7":"8.591065","8":"42.95533","9":"3.548075","10":"5.479134","11":"-0.3753727"},{"1":"Com02H","2":"Com02","3":"H","4":"2741","5":"0","6":"3","7":"0.000000","8":"10.94491","9":"0.000000","10":"1.643740","11":"-1.1123383"},{"1":"Com02I","2":"Com02","3":"I","4":"8410","5":"8","6":"14","7":"9.512485","8":"16.64685","9":"14.192299","10":"7.670787","11":"0.9244985"},{"1":"Com03H","2":"Com03","3":"H","4":"1419","5":"1","6":"5","7":"7.047216","8":"35.23608","9":"1.774037","10":"2.739567","11":"-0.1794525"},{"1":"Com03I","2":"Com03","3":"I","4":"5301","5":"1","6":"10","7":"1.886437","8":"18.86437","9":"1.774037","10":"5.479134","11":"-1.1123383"},{"1":"Com04H","2":"Com04","3":"H","4":"15103","5":"12","6":"37","7":"7.945441","8":"24.49844","9":"21.288448","10":"20.272795","11":"0.1100541"},{"1":"Com04I","2":"Com04","3":"I","4":"44394","5":"44","6":"72","7":"9.911249","8":"16.21841","9":"78.057642","10":"39.449763","11":"0.9908410"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 </div>
@@ -3090,84 +2989,83 @@ log-ratio finite when a DAR set contains no retained mutation.</p>
 <h1>Paired H/I result</h1>
 <p>Lower scores are expected for H samples and higher scores for I
 samples.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Compare H and I within each patient.</span></span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>paired <span class="ot">&lt;-</span> dar_summary <span class="sc">%&gt;%</span></span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="fu">select</span>(patient, known_label, lineage_score) <span class="sc">%&gt;%</span></span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> known_label, <span class="at">values_from =</span> lineage_score) <span class="sc">%&gt;%</span></span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    <span class="at">I_minus_H =</span> I <span class="sc">-</span> H,</span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    <span class="at">direction =</span> <span class="fu">if_else</span>(I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>, <span class="st">&quot;expected&quot;</span>, <span class="st">&quot;opposite&quot;</span>)</span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>  )</span>
-<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>sign_test <span class="ot">&lt;-</span> <span class="fu">binom.test</span>(</span>
-<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>  <span class="fu">sum</span>(paired<span class="sc">$</span>I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>),</span>
-<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>  <span class="fu">nrow</span>(paired),</span>
-<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>  <span class="at">p =</span> <span class="fl">0.5</span></span>
-<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>)</span>
-<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a></span>
-<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="fu">write.table</span>(</span>
-<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>  paired,</span>
-<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;top10_percent_paired_differences.tsv&quot;</span>),</span>
-<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
-<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
-<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a>)</span>
-<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a></span>
-<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>paired</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Compare H and I within each patient.</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>paired <span class="ot">&lt;-</span> dar_summary <span class="sc">%&gt;%</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="fu">select</span>(patient, known_label, lineage_score) <span class="sc">%&gt;%</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(<span class="at">names_from =</span> known_label, <span class="at">values_from =</span> lineage_score) <span class="sc">%&gt;%</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    <span class="at">I_minus_H =</span> I <span class="sc">-</span> H,</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    <span class="at">direction =</span> <span class="fu">if_else</span>(I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>, <span class="st">&quot;expected&quot;</span>, <span class="st">&quot;opposite&quot;</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  )</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>sign_test <span class="ot">&lt;-</span> <span class="fu">binom.test</span>(</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>  <span class="fu">sum</span>(paired<span class="sc">$</span>I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>),</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>  <span class="fu">nrow</span>(paired),</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>  <span class="at">p =</span> <span class="fl">0.5</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="fu">write.table</span>(</span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>  paired,</span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>  <span class="fu">file.path</span>(out_dir, <span class="st">&quot;all_dar_paired_differences.tsv&quot;</span>),</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a>  <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>,</span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>  <span class="at">quote =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a>)</span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a>paired</span></code></pre></div>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":["patient"],"name":[1],"type":["chr"],"align":["left"]},{"label":["H"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["I"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["I_minus_H"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["direction"],"name":[5],"type":["chr"],"align":["left"]}],"data":[{"1":"Com01","2":"-1.6671245","3":"-0.08216196","4":"1.5849625","5":"expected"},{"1":"Com02","2":"-0.8191276","3":"0.76583495","4":"1.5849625","5":"expected"},{"1":"Com03","2":"0.4032649","3":"1.05534157","4":"0.6520767","5":"expected"},{"1":"Com04","2":"-0.6385553","3":"-0.30893282","4":"0.3296225","5":"expected"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":["patient"],"name":[1],"type":["chr"],"align":["left"]},{"label":["H"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["I"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["I_minus_H"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["direction"],"name":[5],"type":["chr"],"align":["left"]}],"data":[{"1":"Com01","2":"1.3324465","3":"-0.3753727","4":"-1.7078192","5":"opposite"},{"1":"Com02","2":"-1.1123383","3":"0.9244985","4":"2.0368368","5":"expected"},{"1":"Com03","2":"-0.1794525","3":"-1.1123383","4":"-0.9328858","5":"opposite"},{"1":"Com04","2":"0.1100541","3":"0.9908410","4":"0.8807868","5":"expected"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>sign_test</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>sign_test</span></code></pre></div>
 <pre><code>## 
 ##  Exact binomial test
 ## 
 ## data:  sum(paired$I_minus_H &gt; 0) and nrow(paired)
-## number of successes = 4, number of trials = 4, p-value = 0.125
+## number of successes = 2, number of trials = 4, p-value = 1
 ## alternative hypothesis: true probability of success is not equal to 0.5
 ## 95 percent confidence interval:
-##  0.3976354 1.0000000
+##  0.06758599 0.93241401
 ## sample estimates:
 ## probability of success 
-##                      1</code></pre>
+##                    0.5</code></pre>
 </div>
 <div id="line-plot" class="section level1">
 <h1>Line plot</h1>
 <p>Each coloured line connects the H and I components from one patient.
 A consistent expected pattern has lines rising from H to I.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Connect each patient&#39;s H and I scores to show the paired direction.</span></span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  dar_summary,</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="fu">aes</span>(known_label, lineage_score, <span class="at">group =</span> patient, <span class="at">colour =</span> patient)</span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
-<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
-<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>    <span class="at">x =</span> <span class="cn">NULL</span>,</span>
-<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Top-10% log2(H-DAR / I-DAR mutation density)&quot;</span>,</span>
-<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">&quot;Patient&quot;</span></span>
-<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>  <span class="fu">theme_classic</span>()</span></code></pre></div>
-<p><img role="img" src="data:image/png;base64,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" width="576" /></p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Connect each patient&#39;s H and I scores to show the paired direction.</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  dar_summary,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="fu">aes</span>(known_label, lineage_score, <span class="at">group =</span> patient, <span class="at">colour =</span> patient)</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>) <span class="sc">+</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>    <span class="at">x =</span> <span class="cn">NULL</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;All-DAR log2(H-DAR / I-DAR mutation density)&quot;</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>    <span class="at">colour =</span> <span class="st">&quot;Patient&quot;</span></span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  <span class="fu">theme_classic</span>()</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" width="576" /></p>
 </div>
 <div id="final-summary" class="section level1">
 <h1>Final summary</h1>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Write the paired result as a short text summary.</span></span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(</span>
-<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="st">&quot;Top 10%% bins: expected paired direction %d/%d; sign-test p = %.3g&quot;</span>,</span>
-<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="fu">sum</span>(paired<span class="sc">$</span>I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>),</span>
-<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="fu">nrow</span>(paired),</span>
-<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  sign_test<span class="sc">$</span>p.value</span>
-<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>)</span>
-<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a></span>
-<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a><span class="fu">writeLines</span>(result, <span class="fu">file.path</span>(out_dir, <span class="st">&quot;final_result.txt&quot;</span>))</span>
-<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">paste</span>(result, <span class="at">collapse =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>))</span></code></pre></div>
-<pre><code>## Top 10% bins: expected paired direction 4/4; sign-test p = 0.125</code></pre>
-<p>Main limitations: only four labelled patient pairs, use of the same
-samples for bin selection and paired comparison, sparse DAR mutation
-counts, candidate-like Mutect2 WES calls, no capture/callable-region
-BED, and mouse-to-human lifted DARs.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Write the paired result as a short text summary.</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="st">&quot;All DARs: expected paired direction %d/%d; sign-test p = %.3g&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="fu">sum</span>(paired<span class="sc">$</span>I_minus_H <span class="sc">&gt;</span> <span class="dv">0</span>),</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="fu">nrow</span>(paired),</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  sign_test<span class="sc">$</span>p.value</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>)</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="fu">writeLines</span>(result, <span class="fu">file.path</span>(out_dir, <span class="st">&quot;all_dar_final_result.txt&quot;</span>))</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">paste</span>(result, <span class="at">collapse =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>))</span></code></pre></div>
+<pre><code>## All DARs: expected paired direction 2/4; sign-test p = 1</code></pre>
+<p>Main limitations: only four labelled patient pairs, sparse DAR
+mutation counts, candidate-like Mutect2 WES calls, no
+capture/callable-region BED, and mouse-to-human lifted DARs.</p>
 </div>
 
 
